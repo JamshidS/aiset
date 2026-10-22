@@ -13,6 +13,8 @@ import re
 import shlex
 import shutil
 
+from .atomic import write_text_atomic
+
 MARKER = "aiset launcher"
 
 
@@ -57,9 +59,8 @@ def register(team, path):
     items = [w for w in workspaces() if os.path.normcase(os.path.abspath(w["path"])) != key]
     items.insert(0, {"team": team, "path": path, "updated": datetime.datetime.now().isoformat(timespec="seconds")})
     os.makedirs(home(), exist_ok=True)
-    with open(_file(), "w", encoding="utf-8", newline="\n") as f:
-        json.dump({"workspaces": items}, f, indent=2, ensure_ascii=False)
-        f.write("\n")
+    text = json.dumps({"workspaces": items}, indent=2, ensure_ascii=False) + "\n"
+    write_text_atomic(_file(), text, newline="\n")
 
 
 def lookup(name):
@@ -108,8 +109,7 @@ def write_launcher(team, path, bin_dir):
         except OSError:
             return None
     os.makedirs(bin_dir, exist_ok=True)
-    with open(target, "w", encoding="utf-8", newline="") as f:
-        f.write(text)
+    write_text_atomic(target, text, newline="")
     if os.name != "nt":
         mode = os.stat(target).st_mode
         os.chmod(target, mode | (mode & 0o444) >> 2)  # like chmod +x: executable by whoever may read it (umask decides)
