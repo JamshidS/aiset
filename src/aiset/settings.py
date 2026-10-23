@@ -9,6 +9,7 @@ import json
 import os
 import re
 
+from .atomic import write_text_atomic
 from . import workspace
 
 PATH = workspace.TEAM + "/settings.json"
@@ -85,8 +86,7 @@ def save(patch):
     cur = load()
     new = _clean(_merge(cur, patch))
     os.makedirs(os.path.dirname(PATH), exist_ok=True)
-    with open(PATH, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(new, f, indent=2)
+    write_text_atomic(PATH, json.dumps(new, indent=2), newline="\n")
     return new
 
 

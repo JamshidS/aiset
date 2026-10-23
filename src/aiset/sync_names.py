@@ -16,6 +16,7 @@ if __name__ == "__main__" and not __package__:  # run as a file: python src/aise
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
     __package__ = "aiset"
 from .workspace import AGENTS, load_roster  # noqa: E402
+from .atomic import write_text_atomic  # noqa: E402
 
 PINNED_START, PINNED_END = "<!-- pinned models: written by aiset settings -->", "<!-- /pinned models -->"
 
@@ -65,8 +66,7 @@ def sync(roster):
         new = re.sub(r"(You are \*\*).+?(, the )", lambda x: x.group(1) + m["name"] + x.group(2), new, count=1)
         new = set_model(new, m.get("model"))
         if new != text:
-            with open(path, "w", encoding="utf-8", errors="surrogateescape", newline="\n") as f:
-                f.write(new)
+            write_text_atomic(path, new, errors="surrogateescape", newline="\n")
             changed.append(m["id"])
     pm = os.path.join(AGENTS, "pm.md")
     if os.path.exists(pm):
@@ -78,8 +78,7 @@ def sync(roster):
                          lambda x: x.group(1) + m["name"] + x.group(2), new, count=1, flags=re.M)
         new = set_pinned(new, roster)
         if new != text:
-            with open(pm, "w", encoding="utf-8", errors="surrogateescape", newline="\n") as f:
-                f.write(new)
+            write_text_atomic(pm, new, errors="surrogateescape", newline="\n")
             changed.append("pm table")
     return changed
 
