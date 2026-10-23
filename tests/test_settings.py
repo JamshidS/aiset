@@ -103,6 +103,21 @@ class RosterEditTest(unittest.TestCase):
             with self.assertRaises(ValueError, msg=edit):
                 settings.apply_roster(ROSTER, edit)
 
+    def test_rejects_non_dict_and_bad_member_shapes(self):
+        for edit in (
+            "not a dict",
+            [1, 2],
+            {"members": "not a list"},
+            {"members": ["not a dict"]},
+            {"members": [123]},
+            {"members": [{"id": ["x"]}]},
+            {"members": [{"id": {"nested": "dict"}}]},
+            {"members": [{"id": 123}]},
+            {"members": [{"id": None}]},
+        ):
+            with self.assertRaises(ValueError, msg=str(edit)):
+                settings.apply_roster(ROSTER, edit)
+
     def test_text_that_would_break_the_agent_files_is_dropped(self):
         out = settings.apply_roster(ROSTER, {"members": [{"id": "backend", "name": 'Em"re\n*x*', "role": "A · B"}]})
         self.assertEqual(out["members"][1]["name"], "Emre x")

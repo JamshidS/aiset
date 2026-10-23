@@ -58,7 +58,12 @@ def reload_roster(office, force=False):
         if mtime == _roster_mtime and not force:
             return None
         roster = workspace.load_roster()
-    except (OSError, ValueError) as e:  # mid-edit or invalid JSON: keep the last good roster
+        if not isinstance(roster, dict) or not isinstance(roster.get("members"), list):
+            raise ValueError("roster must be an object with a 'members' list")
+        for m in roster["members"]:
+            if not isinstance(m, dict) or not m.get("id") or not m.get("name"):
+                raise ValueError("each member must be an object with 'id' and 'name'")
+    except (OSError, ValueError) as e:  # mid-edit, invalid JSON or bad shape: keep the last good roster
         print(f"roster.json not loaded: {e}")
         return None
     first = _roster_mtime is None
@@ -67,9 +72,12 @@ def reload_roster(office, force=False):
         office.roster = roster
         if Handler.brain_office is not None:
             Handler.brain_office.roster = roster
-    changed = sync_names.sync(roster)
-    if changed and not first:
-        print("roster changed → updated agent files:", ", ".join(changed))
+    try:
+        changed = sync_names.sync(roster)
+        if changed and not first:
+            print("roster changed → updated agent files:", ", ".join(changed))
+    except (OSError, ValueError) as e:
+        print(f"agent files not updated: {e}")
     return roster
 
 
@@ -154,7 +162,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200 if data else 404, json.dumps(data).encode(), "application/json")
         if path == "/api/brain/live":
             from urllib.parse import parse_qs, urlparse
-            since = float(parse_qs(urlparse(self.path).query).get("since", ["1800"])[0])
+            try:
+                since = float(parse_qs(urlparse(self.path).query).get("since", ["1800"])[0])
+            except (ValueError, TypeError):
+                since = 1800.0
             with self.lock:
                 data = brain.live(self.office, self.office.roster, since)
             return self._send(200, json.dumps(data).encode(), "application/json")
@@ -225,18 +236,26 @@ class Handler(BaseHTTPRequestHandler):
         if not self._same_origin() or not (self.headers.get("Content-Type") or "").startswith("application/json"):
             return self._send(403, b'{"error": "forbidden"}', "application/json")
         try:
-            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 1 << 20)) or b"{}")
-        except ValueError:
+            length = max(0, min(int(self.headers.get("Content-Length") or 0), 1 << 20))
+            raw = self.rfile.read(length) if length > 0 else b"{}"
+            body = json.loads(raw or b"{}")
+        except (ValueError, TypeError):
             return self._send(400, b'{"error": "not JSON"}', "application/json")
+        if not isinstance(body, dict):
+            return self._send(400, b'{"error": "body must be an object"}', "application/json")
         with self.lock:
             try:
-                if body.get("roster"):
+                if "roster" in body:
+                    if not isinstance(body["roster"], dict):
+                        raise ValueError("roster must be an object")
                     roster = settings.apply_roster(self.office.roster, body["roster"])
                     with open(ROSTER, "w", encoding="utf-8", newline="\n") as f:
                         json.dump(roster, f, indent=2, ensure_ascii=False)
                         f.write("\n")
                     reload_roster(self.office, force=True)
-                if body.get("settings"):
+                if "settings" in body:
+                    if not isinstance(body["settings"], dict):
+                        raise ValueError("settings must be an object")
                     apply_windows(settings.save(body["settings"]))
             except ValueError as e:
                 return self._send(400, json.dumps({"error": str(e)}).encode(), "application/json")
