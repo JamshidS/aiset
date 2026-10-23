@@ -85,7 +85,7 @@ Legend: ✅ works · 🟡 partial / limited · ❌ missing
 | `teammap arch [repo]` | ✅ | The repo's stack, how it runs, the infrastructure it uses and the services it calls, in one call. |
 | Research tools | ✅ | `teammap impact` (impact of an endpoint, function or model change), `teammap failures` (error groups from saved test output), `teammap relevant` (files, symbols, brief sections and episodes related to a task). Exact/inferred distinction, coverage gaps, records tied to an input fingerprint (`<team>/graph/research/`). Details and measurements: [RESEARCH-TOOLS.md](RESEARCH-TOOLS.md). |
 | teammap nudge | ✅ | A `PreToolUse` hook in the engineer, QA and integration-checker files suggests the `teammap` command for a grep after a symbol or route, or a whole read of a long source file. Never blocks; once per suggestion per session; `aiset-init --no-nudge` turns it off. |
-| `teammap code <name>` | ✅ | Only a single function's own code, with line numbers; for classes, the header and method list. Turns the two rounds of "find with grep, then read" into one. |
+| `teammap code <name>` | ✅ | Exact and same-file matches show source with line numbers; ambiguous cross-file matches list candidates (exit 3), substring guesses are labeled, and misses exit 4. |
 | Reading rules | ✅ | Based on measurements: pieces needed together in a single Bash call, the part to edit via Read with `offset`/`limit`, never a whole long file. `LIMIT` on DB queries, a narrow target first for tests. |
 | Assignment size | ✅ | Work that fits in 40–60 tool calls; anything bigger is split into sequential parts. |
 

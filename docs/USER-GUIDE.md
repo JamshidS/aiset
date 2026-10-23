@@ -148,6 +148,12 @@ What each repository in the workspace is built with and what it connects to, rea
   teammap index                        # refresh everything, print counts
   ```
 
+  For `teammap code` and `teammap symbol`, exit 0 means results were shown, exit 3 means
+  candidates span files, and exit 4 means no symbol matched. Ambiguous results show each
+  candidate's qualified name and file location; use that name or add `--repo` to narrow
+  the query. A substring-only match is labeled as a guess. `teammap --help` lists these
+  statuses, along with exit 2 for invalid usage.
+
   Python is parsed with `ast`, TypeScript with frontend's own `typescript` package (`teammap_ts.js`). The cache in `~/.claude/team/graph/index/` refreshes changed files on every query, and each refresh writes the Brain graph (`~/.claude/team/graph/<repo>.json`): every indexed file with the imports between them (Python modules, relative and tsconfig-alias TypeScript imports), plus endpoints, models and API calls. On the Brain page all files are in the Repositories tree; on the map, files no agent has opened are under **Code files**, off by default. Frontend calls are matched to backend routes by resolved URL; "no backend match" usually means the route doesn't exist on the current branch.
 
 Repository-relative paths use `/` on every platform, including Windows architecture evidence. Git-tracked non-ASCII filenames are indexed. `teammap file` resolves its importers with the same Python/TypeScript resolver as the code graph, including relative imports, directory indexes and tsconfig aliases.
