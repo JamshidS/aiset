@@ -25,6 +25,12 @@ Research (one call instead of a string of greps and reads; exact vs inferred fin
 
 Options: --repo <name> limits a query to one repository; --limit N (default 5) caps the matches shown.
 
+Exit status for `teammap code` and `teammap symbol`:
+  0  one match, or multiple matches in the same file, were shown
+  2  the command or its arguments are invalid
+  3  the query matches definitions in different files; qualify the name or add --repo
+  4  no symbol matches; try `teammap search <text>`
+
 The index lives in <team>/graph/index/ (see workspace.py) and refreshes itself on every query: only files whose
 mtime changed are parsed again (Python with ast, TypeScript with the repo's own typescript package).
 Each refresh also writes <team>/graph/<repo>.json, which the office's Brain page shows.
@@ -557,10 +563,15 @@ def cmd_endpoint(repos, L, args, limit):
 
 def cmd_symbol(repos, L, args, limit):
     q = args[0]
-    hits = _best_hits(repos, q)
+    hits, match_kind = _matching_hits(repos, q)
     if not hits:
-        print(f"no symbol matches {q!r}")
-        return
+        print(f"no symbol matches {q!r}  (try: teammap search {q})")
+        return 4
+    if _matches_multiple_files(hits):
+        _print_candidates(q, hits, limit, "symbol", match_kind)
+        return 3
+    if match_kind == "substring":
+        print(f"substring match for {q!r} (not an exact name):")
     shown_callers = set()
     for r, f, lang, s in hits[:limit]:
         sig = ", ".join(f"{p['name']}: {p['type']}" if p["type"] else p["name"] for p in s.get("params", [])) if lang == "py" else s.get("params", "")
@@ -584,24 +595,80 @@ def cmd_symbol(repos, L, args, limit):
             print(f"            {c}")
     if len(hits) > limit:
         print(f"… {len(hits) - limit} more: " + ", ".join(sorted({s['qual'] for _, _, _, s in hits[limit:limit + 12]})))
+    return 0
 
 
-def _best_hits(repos, q):
-    exact = [(r, f, lang, s) for r, f, lang, s in all_symbols(repos) if s["name"] == q or s["qual"] == q]
-    hits = exact or [(r, f, lang, s) for r, f, lang, s in all_symbols(repos) if q.lower() in s["qual"].lower()]
+def _matching_hits(repos, q):
+    symbols = list(all_symbols(repos))
+    qualified = [(r, f, lang, s) for r, f, lang, s in symbols if s["qual"] == q]
+    exact = [(r, f, lang, s) for r, f, lang, s in symbols if s["name"] == q]
+    substring = [
+        (r, f, lang, s) for r, f, lang, s in symbols if q.lower() in s["qual"].lower()
+    ]
+    if qualified:
+        hits, match_kind = qualified, "qualified"
+    elif exact:
+        hits, match_kind = exact, "exact"
+    else:
+        hits, match_kind = substring, "substring"
+    _sort_hits(hits)
+    return hits, match_kind
+
+
+def _sort_hits(hits):
     # the real definition first: not a test, not a nested helper, the biggest body
-    hits.sort(key=lambda h: (is_test(h[1]), h[3]["qual"].count(".") - (1 if h[3]["kind"] == "method" else 0), -(h[3]["end"] - h[3]["line"])))
+    hits.sort(
+        key=lambda h: (
+            is_test(h[1]),
+            h[3]["qual"].count(".") - (1 if h[3]["kind"] == "method" else 0),
+            -(h[3]["end"] - h[3]["line"]),
+        )
+    )
     return hits
 
 
-def cmd_code(repos, L, args, limit, max_lines=150):
+def _best_hits(repos, q):
+    symbols = list(all_symbols(repos))
+    exact = [
+        (r, f, lang, s) for r, f, lang, s in symbols if s["name"] == q or s["qual"] == q
+    ]
+    hits = exact or [
+        (r, f, lang, s) for r, f, lang, s in symbols if q.lower() in s["qual"].lower()
+    ]
+    return _sort_hits(hits)
+
+
+def _matches_multiple_files(hits):
+    return len({(repo, path) for repo, path, _lang, _symbol in hits}) > 1
+
+
+def _print_candidates(q, hits, limit, command, match_kind):
+    label = "substring matches" if match_kind == "substring" else "ambiguous matches"
+    print(f"{label} for {q!r}:")
+    for repo, path, _lang, symbol in hits[:limit]:
+        print(f"  {symbol['kind']} {symbol['qual']} {repo}/{path}:{symbol['line']}")
+    if len(hits) > limit:
+        print(
+            f"… {len(hits) - limit} more; add --limit {len(hits)} to see all candidates"
+        )
+    print(
+        f"Try `teammap {command} <qual>` for an exact match, or add `--repo <name>` to narrow."
+    )
+
+
+def cmd_code(repos, L, args, limit=None, max_lines=150):
     """Print a definition's source so an agent reads exactly that function, in one call."""
     q = args[0]
-    hits = _best_hits(repos, q)
+    hits, match_kind = _matching_hits(repos, q)
     if not hits:
         print(f"no symbol matches {q!r}  (try: teammap search {q})")
-        return
-    for r, f, lang, s in hits[:limit]:
+        return 4
+    if _matches_multiple_files(hits):
+        _print_candidates(q, hits, limit or 5, "code", match_kind)
+        return 3
+    if match_kind == "substring":
+        print(f"substring match for {q!r} (not an exact name):")
+    for r, f, lang, s in hits[: limit or 1]:
         path = os.path.join(CODE_ROOT, r, f)
         try:
             with open(path, encoding="utf-8", errors="replace") as fh:
@@ -633,8 +700,15 @@ def cmd_code(repos, L, args, limit, max_lines=150):
             if stop < end:
                 print(f"  … {end - stop} more lines: Read {path} offset={stop + 1} limit={end - stop}  (or --max {end - start + 1})")
         print()
-    if len(hits) > limit:
-        print("other matches: " + ", ".join(f"{h[3]['qual']} ({h[0]}/{h[1]}:{h[3]['line']})" for h in hits[limit:limit + 6]))
+    if len(hits) > (limit or 1):
+        print(
+            "other matches: "
+            + ", ".join(
+                f"{h[3]['qual']} ({h[0]}/{h[1]}:{h[3]['line']})"
+                for h in hits[(limit or 1) : (limit or 1) + 6]
+            )
+        )
+    return 0
 
 
 def camel(s):
@@ -884,8 +958,9 @@ def main(argv):
         L = link(all_repos)
         L["endpoints"] = [e for e in L["endpoints"] if e["repo"] == only] or L["endpoints"]
     if cmd == "code":
-        cmd_code(repos, L, rest, limit or 1, max_lines)
-        return 0
+        return cmd_code(repos, L, rest, limit, max_lines)
+    if cmd == "symbol":
+        return cmd_symbol(repos, L, rest, limit or 5)
     cmds[cmd](all_repos if cmd in ("endpoint", "who-uses", "model") else repos, L, rest, limit or 5)
     return 0
 
