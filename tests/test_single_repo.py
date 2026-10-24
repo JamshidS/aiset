@@ -43,12 +43,12 @@ class SingleRepoTest(unittest.TestCase):
             self.assertEqual(repos[0]["checks"], ["npm run test"])
             (root / "api").mkdir()
             (root / "api/pyproject.toml").write_text('[project]\nname="api"\n')
-            self.assertEqual([r["name"] for r in init_team.scan(str(root))], ["api"])
+            self.assertEqual([r["name"] for r in init_team.scan(str(root))], ["api", "."])
 
 
-def _init(root, tmp):
+def _init(root, tmp, *args):
     with patch.dict(os.environ, {"AISET_HOME": str(Path(tmp) / "home")}), \
-         patch.object(sys, "argv", ["aiset-init", str(root), "--no-launcher"]), \
+         patch.object(sys, "argv", ["aiset-init", str(root), "--no-launcher", *args]), \
          patch("builtins.print") as out:
         init_team.main()
     return json.loads((root / ".claude/team/roster.json").read_text()), out
@@ -112,3 +112,73 @@ class UniqueMemberIdTest(unittest.TestCase):
             self.assertTrue(any("still owns the repository root" in str(c.args[0]) for c in out.call_args_list if c.args))
             third, _ = _init(root, tmp)  # idempotent: the note is not appended twice
             self.assertEqual(next(m for m in third["members"] if m["id"] == "root")["duty"].count("service folders"), 1)
+
+
+class RootPackageOwnershipTest(unittest.TestCase):
+    """A monorepo root with a manifest keeps its root unit (id root) alongside service folders."""
+
+    SUPPORT_SHAPES = (("tests", "requirements.txt"), ("scripts", "requirements.txt"),
+                      ("tools", "Dockerfile"), ("docs", "package.json"))
+    MANIFEST_CONTENT = {"requirements.txt": "somepkg\n",
+                        "package.json": '{"scripts": {"test": "node --test"}}',
+                        "Dockerfile": "FROM python:3.12\n"}
+    SUPPORT_CHECKS = {"requirements.txt": "pytest", "Dockerfile": "docker compose -f <file> config -q"}
+
+    def test_root_unit_scanned_alongside_support_folder_units(self):
+        for folder, manifest in self.SUPPORT_SHAPES:
+            with self.subTest(shape=(folder, manifest)):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp) / "mono"
+                    (root / ".git").mkdir(parents=True)
+                    (root / "pyproject.toml").write_text('[project]\nname="demo"\n')
+                    (root / folder).mkdir()
+                    (root / folder / manifest).write_text(self.MANIFEST_CONTENT[manifest])
+                    expected_units = ["."] if folder == "docs" else [folder, "."]  # scan() skips docs/
+                    self.assertEqual([r["name"] for r in init_team.scan(str(root))], expected_units)
+                    first, _ = _init(root, tmp)
+                    second, _ = _init(root, tmp)
+                    self.assertEqual([m["id"] for m in first["members"]], [m["id"] for m in second["members"]])
+                    for roster in (first, second):
+                        owners = [m for m in roster["members"] if m.get("repos") == ["."]]
+                        self.assertEqual(len(owners), 1)
+                        self.assertEqual(owners[0]["id"], "root")
+                        self.assertEqual(owners[0]["checks"], ["pytest"])
+                    if folder != "docs":  # scan() skips docs/, so it gets no engineer anywhere
+                        svc = next(m for m in second["members"] if m.get("repos") == [folder])
+                        self.assertEqual(svc["checks"], [f"cd {folder} && {self.SUPPORT_CHECKS[manifest]}"])
+
+    def test_root_unit_kept_alongside_a_real_service_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "mono"
+            (root / ".git").mkdir(parents=True)
+            (root / "pyproject.toml").write_text('[project]\nname="demo"\n')
+            (root / "api").mkdir()
+            (root / "api/pyproject.toml").write_text('[project]\nname="api"\n')
+            self.assertEqual([r["name"] for r in init_team.scan(str(root))], ["api", "."])
+            roster, _ = _init(root, tmp)
+            by_repo = {r: m for m in roster["members"] for r in m.get("repos") or []}
+            self.assertEqual(by_repo["api"]["id"], "api")
+            self.assertEqual(by_repo["."]["id"], "root")
+            self.assertIsNot(by_repo["api"], by_repo["."])
+            self.assertIn("service folders", by_repo["."]["duty"])
+
+    def test_group_stack_one_engineer_owns_root_and_service(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "mono"
+            (root / ".git").mkdir(parents=True)
+            (root / "pyproject.toml").write_text('[project]\nname="demo"\n')
+            (root / "api").mkdir()
+            (root / "api/pyproject.toml").write_text('[project]\nname="api"\n')
+            roster, _ = _init(root, tmp, "--group", "stack")
+            owners = [m for m in roster["members"] if m.get("repos")]
+            self.assertEqual(len(owners), 1)
+            self.assertEqual(set(owners[0]["repos"]), {"api", "."})
+            self.assertNotIn("service folders", owners[0]["duty"])
+
+    def test_root_without_manifest_stays_unowned(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "mono"
+            (root / ".git").mkdir(parents=True)
+            (root / "api").mkdir()
+            (root / "api/pyproject.toml").write_text('[project]\nname="api"\n')
+            self.assertEqual([r["name"] for r in init_team.scan(str(root))], ["api"])
