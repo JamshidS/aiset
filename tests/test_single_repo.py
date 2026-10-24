@@ -200,3 +200,18 @@ class RootPackageOwnershipTest(unittest.TestCase):
             root_md = (root / ".claude/agents/root.md").read_text(encoding="utf-8")
             self.assertIn("You own:\n\n- `.` at ", root_md)  # carry_root_unit kept the root unit in repos
             self.assertNotIn("- `api`", root_md)
+
+    def test_group_stack_keeps_the_root_units_commands_unmasked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "mono"
+            (root / ".git").mkdir(parents=True)
+            (root / "go.mod").write_text("module example.com/mono\n")
+            (root / "server").mkdir()
+            (root / "server/go.mod").write_text("module example.com/mono/server\n")
+            roster, _ = _init(root, tmp, "--group", "stack")
+            owner = next(m for m in roster["members"] if m.get("repos") == ["server", "."])
+            self.assertEqual(owner["id"], "go-backend")
+            agent = (root / ".claude/agents/go-backend.md").read_text(encoding="utf-8")
+            self.assertNotIn("go test <service>/", agent)  # masking the root unit's name ate every dot
+            self.assertIn("go test ./...", agent)
+            self.assertIn("cd <service> && go test ./...", agent)  # service folders stay masked

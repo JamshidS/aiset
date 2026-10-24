@@ -388,7 +388,8 @@ def write_agents(ws, roster, repos, force):
         checks = []
         for r in own:  # in a monorepo every service has the same commands; show the pattern once
             for c in r["checks"]:
-                c = c.replace(r["name"], "<service>") if len(own) > 1 else c
+                # the root unit's name is ".", so masking it would eat every dot in the command
+                c = c.replace(r["name"], "<service>") if len(own) > 1 and r["name"] != "." else c
                 if c not in checks:
                     checks.append(c)
         values = {**base, "ID": m["id"], "NAME": m["name"], "ROLE": m["role"], "DUTY": m.get("duty", ""),
