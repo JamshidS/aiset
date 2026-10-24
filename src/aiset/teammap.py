@@ -29,6 +29,7 @@ The index lives in <team>/graph/index/ (see workspace.py) and refreshes itself o
 mtime changed are parsed again (Python with ast, TypeScript with the repo's own typescript package).
 Each refresh also writes <team>/graph/<repo>.json, which the office's Brain page shows.
 """
+import argparse
 import ast
 import json
 import os
@@ -49,7 +50,7 @@ INDEX = os.path.join(GRAPHS, "index")
 # Index only the repositories configured in the active roster.
 REPOS = roster_repos()
 HTTP = {"get", "post", "put", "patch", "delete", "head", "options"}
-VERSION = 6
+VERSION = 8
 
 
 # -- Python extraction ---------------------------------------------------------------------
@@ -128,7 +129,18 @@ def py_extract(text):
                 for d in child.decorator_list:
                     if isinstance(d, ast.Call) and isinstance(d.func, ast.Attribute) and d.func.attr in HTTP | {"api_route"}:
                         r = route_from(d, cls, qual, child.lineno)
-                        f["routes"].append(r)
+                        if d.func.attr == "api_route":
+                            methods = _kw(d, "methods")
+                            if methods is None:
+                                ms = ["GET"]
+                            elif isinstance(methods, (ast.List, ast.Tuple, ast.Set)) and all(
+                                    isinstance(m, ast.Constant) and isinstance(m.value, str) for m in methods.elts):
+                                ms = list(dict.fromkeys(m.value.upper() for m in methods.elts))
+                            else:
+                                ms = ["UNKNOWN"]
+                            f["routes"].extend(dict(r, method=m) for m in ms)
+                        else:
+                            f["routes"].append(r)
                 visit(child, stack + [child.name], cls)
                 continue
             if isinstance(child, (ast.Assign, ast.AnnAssign)):
@@ -836,19 +848,13 @@ def main(argv):
         print("teammap " + __version__)
         return 0
     argv = [msys_unmangle(a) for a in argv]
-    limit, only, force, args, max_lines = None, None, False, [], 150
-    it = iter(argv)
-    for a in it:
-        if a == "--limit":
-            limit = int(next(it, "5"))
-        elif a == "--max":
-            max_lines = int(next(it, "150"))
-        elif a == "--repo":
-            only = next(it, None)
-        elif a == "--force":
-            force = True
-        else:
-            args.append(a)
+    parser = argparse.ArgumentParser(prog="teammap", add_help=False, allow_abbrev=False)
+    parser.add_argument("--limit", type=int)
+    parser.add_argument("--max", type=int, default=150)
+    parser.add_argument("--repo", choices=REPOS)
+    parser.add_argument("--force", action="store_true")
+    opts, args = parser.parse_known_args(argv)
+    limit, only, force, max_lines = opts.limit, opts.repo, opts.force, opts.max
     if not args or args[0] in ("-h", "--help", "help"):
         print(__doc__.strip())
         return 0

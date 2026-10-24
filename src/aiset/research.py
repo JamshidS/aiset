@@ -22,6 +22,7 @@ index file mtimes (committed or not) plus the tool version and parameters; other
 Results are stored in <team>/graph/research/ (see workspace.py); nothing is written into the repositories, and
 test output is only read, never executed.
 """
+import argparse
 import hashlib
 import json
 import os
@@ -829,16 +830,25 @@ def _frame_loc(fr):
 
 def _is_library(path):
     p = norm(path)
-    return bool(re.search(r"(^|/)(site-packages|dist-packages|node_modules|lib/python\d[\d.]*|internal/|<frozen )", p)) \
+    return bool(re.search(r"(^|/)(site-packages|dist-packages|node_modules|lib/python\d[\d.]*|<frozen )", p)) \
+        or bool(re.match(r"^internal/.*\.[cm]?js$", p)) \
         or p.startswith(("node:", "<"))
 
 
 def _map_frame(fr, repos_by_name, base_repo):
     """repo/rel for a stack frame inside the workspace's repos; None for libraries and unknown paths."""
     p = norm(fr["path"])
+    absolute = os.path.isabs(fr["path"]) or re.match(r"^[a-zA-Z]:", p)
+    order = ([base_repo] if base_repo else []) + [n for n in repos_by_name if n != base_repo]
+    if not absolute:
+        p = p.lstrip("./")
+        for name in order:
+            r = repos_by_name.get(name)
+            if r and p in r["files"]:  # indexed project files take precedence over Node's internal/ paths
+                return name, p
     if _is_library(p):
         return None
-    if os.path.isabs(fr["path"]) or re.match(r"^[a-zA-Z]:", p):
+    if absolute:
         rel = relative(p, CODE_ROOT)
         if rel:
             repo, _, rest = rel.partition("/")
@@ -849,11 +859,9 @@ def _map_frame(fr, repos_by_name, base_repo):
             if rr:
                 return name, rr
         return None
-    p = p.lstrip("./")
-    order = ([base_repo] if base_repo else []) + [n for n in repos_by_name if n != base_repo]
     for name in order:
         r = repos_by_name.get(name)
-        if r and (p in r["files"] or os.path.isfile(os.path.join(r["root"], p))):
+        if r and os.path.isfile(os.path.join(r["root"], p)):
             return name, p
     return None
 
@@ -1186,25 +1194,16 @@ def emit(res, as_json, limit, max_chars):
 # -- main -------------------------------------------------------------------------------------------
 
 def _parse(argv):
-    opts = {"json": False, "limit": None, "all": False, "max_chars": None, "repo": None, "fresh": False, "format": None,
-            "kind": None, "section": None}
-    args, it = [], iter(argv)
-    for a in it:
-        if a == "--json":
-            opts["json"] = True
-        elif a == "--all":
-            opts["all"] = True
-        elif a == "--fresh":
-            opts["fresh"] = True
-        elif a in ("--limit", "--max-chars", "--repo", "--format", "--kind", "--section"):
-            v = next(it, None)
-            if v is None:
-                raise SystemExit(f"{a} needs a value")
-            key = a[2:].replace("-", "_")
-            opts[key] = int(v) if key in ("limit", "max_chars") else v
-        else:
-            args.append(a)
-    return args, opts
+    parser = argparse.ArgumentParser(prog="teammap", add_help=False, allow_abbrev=False)
+    for name in ("json", "all", "fresh"):
+        parser.add_argument("--" + name, action="store_true")
+    for name in ("limit", "max-chars"):
+        parser.add_argument("--" + name, type=int)
+    parser.add_argument("--repo", choices=teammap.REPOS)
+    for name in ("format", "kind", "section"):
+        parser.add_argument("--" + name)
+    opts, args = parser.parse_known_args(argv)
+    return args, vars(opts)
 
 
 def main(argv):

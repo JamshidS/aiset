@@ -153,6 +153,8 @@ Services, databases and the calls between them, each backed by a file and line. 
 | `teammap endpoint` · `model` · `arch` · `symbol` | Direct lookups. `teammap --help` lists them all. |
 | `aiset --version` · `aiset-init --version` · `teammap --version` | Print the installed version. Doesn't start the office or touch a workspace. |
 
+`teammap --repo NAME` uses repository names from the active roster. Unknown names and missing or non-integer numeric option values produce a usage error (exit 2); see the [user guide](docs/USER-GUIDE.md#research-tools-teammap-impact-failures-relevant) for options.
+
 <details>
 <summary><b>Example: what does changing an endpoint break?</b></summary>
 <br>

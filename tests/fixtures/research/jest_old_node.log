@@ -1,0 +1,12 @@
+ FAIL  src/app.test.js
+
+  ● app rejects an invalid value
+
+    TypeError: invalid value
+
+      at validateString (internal/validators.js:120:11)
+      at new NodeError (internal/errors.js:322:7)
+      at Object.<anonymous> (src/app.test.js:5:3)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total

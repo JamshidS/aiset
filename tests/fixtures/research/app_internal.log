@@ -1,0 +1,9 @@
+=================== FAILURES ===================
+___________________ test_boom ___________________
+Traceback (most recent call last):
+  File "tests/test_boom.py", line 2, in test_boom
+    explode()
+  File "app/internal/boom.py", line 2, in explode
+    raise ValueError("boom")
+ValueError: boom
+=================== 1 failed ===================
