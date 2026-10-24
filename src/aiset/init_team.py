@@ -316,7 +316,7 @@ def scope_root_owner(roster, repos):
     duty notes they belong to their own engineers. ``repos`` is the scan() result. The note is left
     out when the same member also owns those folders (--group stack), because nothing is handed to
     anyone else then."""
-    if not repos or not any(r["name"] == "." for r in repos):
+    if not any(r["name"] == "." for r in repos):
         return []
     others = [r["name"] for r in repos if r["name"] != "."]
     if not others:

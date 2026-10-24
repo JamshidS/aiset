@@ -182,3 +182,21 @@ class RootPackageOwnershipTest(unittest.TestCase):
             (root / "api").mkdir()
             (root / "api/pyproject.toml").write_text('[project]\nname="api"\n')
             self.assertEqual([r["name"] for r in init_team.scan(str(root))], ["api"])
+
+    def test_root_unit_survives_deleting_the_root_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "mono"
+            (root / ".git").mkdir(parents=True)
+            (root / "pyproject.toml").write_text('[project]\nname="demo"\n')
+            _init(root, tmp)
+            (root / "pyproject.toml").unlink()
+            (root / "api").mkdir()
+            (root / "api/pyproject.toml").write_text('[project]\nname="api"\n')
+            roster, _ = _init(root, tmp)
+            owner = next(m for m in roster["members"] if m.get("repos") == ["."])
+            self.assertEqual(owner["id"], "root")
+            self.assertEqual(owner["checks"], ["pytest"])  # kept from the first init's roster
+            self.assertEqual(next(m for m in roster["members"] if m.get("repos") == ["api"])["id"], "api")
+            root_md = (root / ".claude/agents/root.md").read_text(encoding="utf-8")
+            self.assertIn("You own:\n\n- `.` at ", root_md)  # carry_root_unit kept the root unit in repos
+            self.assertNotIn("- `api`", root_md)
