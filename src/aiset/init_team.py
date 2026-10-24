@@ -13,9 +13,9 @@
                                                 (remembered in roster.json; set "nudge": true to bring it back)
 
 A folder of git repositories gets one unit per repo. A monorepo (the folder is itself a git repo) gets
-one unit per top-level folder that has a build file (pom.xml, package.json, requirements.txt, Dockerfile…).
-A monorepo with a build file at its root and no service folders is a single root unit (id root); if service
-folders appear later, the root engineer keeps the root and its repo and checks stay in root.md.
+one unit per top-level folder that has a build file (pom.xml, package.json, requirements.txt, Dockerfile…),
+and, when the root itself has a build file, a root unit (id root) alongside them: the root engineer keeps
+the root, and its repo and checks stay in root.md.
 
 What it writes (see workspace.py for how the office finds it):
 
@@ -151,7 +151,7 @@ def scan(ws):
         if mono:  # commands run from the monorepo root
             checks = [f"cd {name} && {c}" for c in checks]
         repos.append({"name": name, "kind": kind, "stack": stack, "checks": checks, "summary": readme_summary(d)})
-    if mono and not repos and any(os.path.isfile(os.path.join(ws, f)) for f in UNIT_FILES):
+    if mono and any(os.path.isfile(os.path.join(ws, f)) for f in UNIT_FILES):
         kind, stack, checks = detect(ws)
         repos.append({"name": ".", "kind": kind, "stack": stack, "checks": checks,
                       "summary": readme_summary(ws)})
@@ -300,7 +300,7 @@ ROOT_SCOPE = " · outside the service folders, which have their own engineers"
 
 
 def carry_root_unit(ws, repos, old):
-    """scan() stops returning "." once a service folder appears. While a member of the old roster still
+    """scan() returns "." only while the repository root has a manifest. While a member of the old roster still
     owns it, keep the root unit in ``repos`` (built with detect(ws)) so root.md keeps its own repo and checks."""
     if not old or any(r["name"] == "." for r in repos):
         return repos
@@ -311,17 +311,22 @@ def carry_root_unit(ws, repos, old):
 
 
 def scope_root_owner(roster, repos):
-    """Once services appear in subfolders, scan() stops returning "."; the engineer who kept owning
-    the root unit keeps it, but their duty now says the service folders are someone else's.
-    ``repos`` is the scan() result. The note is left out when the same member also owns those folders
-    (--group stack), because nothing is handed to anyone else then."""
-    if not repos or any(r["name"] == "." for r in repos):
+    """scan() returns the root unit whenever the repository root has a manifest, so a roster member
+    owns it from the first init. When the scan found service folders besides it, the root engineer's
+    duty notes they belong to their own engineers. ``repos`` is the scan() result. The note is left
+    out when the same member also owns those folders (--group stack), because nothing is handed to
+    anyone else then."""
+    if not any(r["name"] == "." for r in repos):
+        return []
+    others = [r["name"] for r in repos if r["name"] != "."]
+    if not others:
         return []
     scoped = []
     for m in roster["members"]:
-        if any(r["name"] in (m.get("repos") or []) for r in repos):
+        owned = m.get("repos") or []
+        if "." not in owned or any(r in owned for r in others):
             continue
-        if "." in (m.get("repos") or []) and ROOT_SCOPE not in m.get("duty", ""):
+        if ROOT_SCOPE not in m.get("duty", ""):
             m["duty"] = m.get("duty", "") + ROOT_SCOPE
             scoped.append(m["name"])
     return scoped
@@ -383,7 +388,8 @@ def write_agents(ws, roster, repos, force):
         checks = []
         for r in own:  # in a monorepo every service has the same commands; show the pattern once
             for c in r["checks"]:
-                c = c.replace(r["name"], "<service>") if len(own) > 1 else c
+                # the root unit's name is ".", so masking it would eat every dot in the command
+                c = c.replace(r["name"], "<service>") if len(own) > 1 and r["name"] != "." else c
                 if c not in checks:
                     checks.append(c)
         values = {**base, "ID": m["id"], "NAME": m["name"], "ROLE": m["role"], "DUTY": m.get("duty", ""),
