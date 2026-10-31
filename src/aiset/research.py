@@ -642,7 +642,7 @@ def parse_pytest(lines):
         cur["end"] = len(lines)
     by_name = {f["test"].split("::")[-1]: f for f in fails}
     for i, ln in enumerate(lines):  # short summary: fills message and file, or is all there is (--tb=no)
-        m = re.match(r"^(FAILED|ERROR) (\S+?)(?:::(\S+))?(?: - (.*))?$", ln)
+        m = re.match(r"^(FAILED|ERROR) (\S+?)(?:::([^\s\[]+(?:\[.*?\])?))?(?: - (.*))?$", ln)
         if not m:
             continue
         name = (m.group(3) or m.group(2)).split("::")[-1]
