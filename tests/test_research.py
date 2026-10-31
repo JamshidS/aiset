@@ -33,14 +33,23 @@ def parse(name, fmt=None):
 class ParserTest(unittest.TestCase):
     def test_formats_are_detected(self):
         for name, fmt in [("pytest.log", "pytest"), ("pytest_short.log", "pytest"), ("pytest_tbno.log", "pytest"),
-                          ("pytest_native.log", "pytest"), ("unittest.log", "unittest"), ("tap.log", "tap"),
-                          ("junit.xml", "junit"), ("jest.log", "jest"), ("vitest.log", "vitest"), ("pass.log", "passed-only")]:
+                          ("pytest_native.log", "pytest"), ("unittest.log", "unittest"), ("unittest_py310.log", "unittest"),
+                          ("tap.log", "tap"), ("junit.xml", "junit"), ("jest.log", "jest"), ("vitest.log", "vitest"),
+                          ("pass.log", "passed-only")]:
             self.assertEqual(research.detect_format(fixture(name)), fmt, name)
+
+    def test_unittest_python_39_310_full_test_names(self):
+        _, u311 = parse("unittest.log")
+        _, u310 = parse("unittest_py310.log")
+        self.assertEqual(sorted(f["test"] for f in u310), sorted(f["test"] for f in u311))
+        expected_prefix = "app.tests.test_billing.BillingTest."
+        for f in u310:
+            self.assertTrue(f["test"].startswith(expected_prefix), f["test"])
 
     def test_python_runners_give_the_same_failures(self):
         want = {"test_total_one": "6 != 7", "test_total_two": "5 != 6", "test_missing_price": "'price'",
                 "test_parse_bad": "'four'", "test_parse_bad2": "'five'"}
-        for name in ("pytest.log", "pytest_short.log", "pytest_native.log", "unittest.log", "junit.xml"):
+        for name in ("pytest.log", "pytest_short.log", "pytest_native.log", "unittest.log", "unittest_py310.log", "junit.xml"):
             _, fails = parse(name)
             got = {f["test"].split(".")[-1]: f for f in fails}
             self.assertEqual(set(got), set(want), name)

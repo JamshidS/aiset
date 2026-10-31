@@ -681,7 +681,8 @@ def parse_unittest(lines):
         # the exception line is the last unindented one; earlier ones belong to chained exceptions
         tail = [b for b in block if b.strip() and not b.startswith((" ", "Traceback", "During handling", "The above exception"))]
         etype, msg = _message(list(reversed(tail)))
-        out.append({"test": f"{m.group(3)}", "kind": "failed" if m.group(1) == "FAIL" else "error", "file": None,
+        name = m.group(3) if m.group(3).endswith("." + m.group(2)) else f"{m.group(3)}.{m.group(2)}"
+        out.append({"test": name, "kind": "failed" if m.group(1) == "FAIL" else "error", "file": None,
                     "type": etype, "message": msg, "frames": _frames(block), "log_lines": [i + 1, j]})
     return out
 
