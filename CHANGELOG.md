@@ -19,6 +19,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Agent templates: the PM writes acceptance criteria as `AC-1`, `AC-2`, … (#58); engineers and QA report one `AC-n:` line per criterion and label claims `[V]` verified, `[S]` assumed, `[?]` open (#61). The PM has a short section on working an issue for `aiset run`.
 - The tester and engineer templates use `teammap run`, and the nudge hook recommends it when a known test runner is piped into `tail` or `head`.
 
+### Fixed
+
+- Research tools: `teammap failures` builds the full `module.Class.method` test name from Python 3.9/3.10 unittest output (#123).
+
 ## [0.2.0] - 2026-10-28
 
 ### Added
