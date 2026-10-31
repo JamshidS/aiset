@@ -33,9 +33,25 @@ def parse(name, fmt=None):
 class ParserTest(unittest.TestCase):
     def test_formats_are_detected(self):
         for name, fmt in [("pytest.log", "pytest"), ("pytest_short.log", "pytest"), ("pytest_tbno.log", "pytest"),
+                          ("pytest_param_space.log", "pytest"),
                           ("pytest_native.log", "pytest"), ("unittest.log", "unittest"), ("tap.log", "tap"),
                           ("junit.xml", "junit"), ("jest.log", "jest"), ("vitest.log", "vitest"), ("pass.log", "passed-only")]:
             self.assertEqual(research.detect_format(fixture(name)), fmt, name)
+
+    def test_pytest_parametrized_id_with_space(self):
+        _, fails = parse("pytest_param_space.log")
+        by_test = {f["test"]: f for f in fails}
+        self.assertIn("test_split[a b]", by_test)
+        f1 = by_test["test_split[a b]"]
+        self.assertEqual(f1["file"], "test_p.py")
+        self.assertEqual(f1["type"], "AssertionError")
+        self.assertIn("assert ' ' not in 'a b'", f1["message"])
+
+        self.assertIn("test_z[a - b]", by_test)
+        f2 = by_test["test_z[a - b]"]
+        self.assertEqual(f2["file"], "test_p.py")
+        self.assertEqual(f2["type"], "AssertionError")
+        self.assertIn("assert ' ' not in 'a - b'", f2["message"])
 
     def test_python_runners_give_the_same_failures(self):
         want = {"test_total_one": "6 != 7", "test_total_two": "5 != 6", "test_missing_price": "'price'",
