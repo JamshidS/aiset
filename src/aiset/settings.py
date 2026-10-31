@@ -10,7 +10,7 @@ import os
 import re
 
 from .atomic import write_text_atomic
-from . import workspace
+from . import providers, workspace
 
 PATH = workspace.TEAM + "/settings.json"
 
@@ -42,6 +42,16 @@ MODELS = [
 ]
 MODEL_RE = re.compile(r"^[a-z0-9][a-z0-9.\-\[\]]{0,63}$")
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def models(roster):
+    if providers.name(roster) == "codex":
+        return [{"id": "", "label": "PM decides", "note": "The PM chooses per assignment, or inherits the session. A custom model id pins your choice."}]
+    return MODELS
+
+
+def agents_path(roster):
+    return providers.agents_dir(workspace.WORKSPACE, "codex") if providers.name(roster) == "codex" else workspace.AGENTS
 
 
 def _merge(base, over):
@@ -140,15 +150,26 @@ def apply_roster(roster, edit):
             model = str(e["model"] or "").strip().lower()
             if model and not MODEL_RE.match(model):
                 raise ValueError(f"{m['name']}: {model!r} isn't a model alias or id")
-            if model:
+            if providers.name(out) == "codex":
+                from .providers.codex import options
+                m.setdefault("codex", {})["model"] = model
+                options(m)
+            elif model:
                 m["model"] = model
             else:
                 m.pop("model", None)
+        if "reasoning" in e and providers.name(out) == "codex":
+            from .providers.codex import options
+            m.setdefault("codex", {})["reasoning"] = e["reasoning"]
+            options(m)
     return out
 
 
 def agent_files(roster):
     """Per member: whether its agent file exists, the model it has now, and whether init_team regenerates it."""
+    if providers.name(roster) == "codex":
+        from .providers.codex import agent_files as codex_files
+        return codex_files(workspace.WORKSPACE, roster)
     out = {}
     for m in roster["members"]:
         path = os.path.join(workspace.AGENTS, m["id"] + ".md")

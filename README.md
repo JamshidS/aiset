@@ -6,7 +6,7 @@
 
 ### The shared brain for your AI coding team
 
-Turn your repositories into a team of Claude Code agents that remember what they learn,<br>
+Turn your repositories into a team of Claude Code or Codex agents that remember what they learn,<br>
 work in parallel, and show you every step, live.
 
 <br>
@@ -19,7 +19,7 @@ work in parallel, and show you every step, live.
 [![Windows · macOS · Linux](https://img.shields.io/badge/platform-Windows%20·%20macOS%20·%20Linux-6b7280?style=flat-square)](docs/USER-GUIDE.md)
 [![MIT License](https://img.shields.io/badge/license-MIT-8b5cf6?style=flat-square)](LICENSE)
 
-**[Quick start](#quick-start)** &nbsp;·&nbsp; **[Tour](#a-real-run-start-to-finish)** &nbsp;·&nbsp; **[Commands](#commands)** &nbsp;·&nbsp; **[User guide](docs/USER-GUIDE.md)** &nbsp;·&nbsp; **[Research](docs/RESEARCH-TOOLS.md)**
+**[Quick start](#quick-start)** &nbsp;·&nbsp; **[Codex CLI](#codex-cli-preview)** &nbsp;·&nbsp; **[Tour](#a-real-run-start-to-finish)** &nbsp;·&nbsp; **[Commands](#commands)** &nbsp;·&nbsp; **[User guide](docs/USER-GUIDE.md)** &nbsp;·&nbsp; **[Research](docs/RESEARCH-TOOLS.md)**
 
 <br>
 
@@ -32,6 +32,8 @@ work in parallel, and show you every step, live.
 <br>
 
 ## Quick start
+
+New teams use Claude Code by default. For Codex, follow the [Codex CLI quick start](#codex-cli-preview) below.
 
 ```sh
 pipx install aiset-cli                             # or: pip install aiset-cli
@@ -52,6 +54,87 @@ Give the PM its first task:
 <sub>The PyPI package is `aiset-cli`; `aiset` on PyPI is an unrelated project.</sub>
 
 <br>
+
+## Codex CLI (preview)
+
+Needs Python 3.9+, Git, and a signed-in [Codex CLI](https://learn.chatgpt.com/docs/cli) with project custom-agent
+support, available on `PATH`. TypeScript indexing also uses Node.js. Claude Code is not required for this workflow.
+
+This integration is not yet in the published PyPI package. From this Aiset checkout, install the local version:
+
+```sh
+python -m pip install -e .
+```
+
+Then point Aiset at your **existing project folder**. Replace `~/work/shop` with its actual path;
+`shop` is the team name you choose:
+
+```sh
+aiset-init ~/work/shop --team shop --provider codex
+shop-pm                                            # talk to your Codex PM
+```
+
+In a second terminal, open the office at **http://127.0.0.1:8765**:
+
+```sh
+aiset --workspace shop
+```
+
+If you use a Python virtual environment, activate that same environment in both terminals so the Aiset commands
+are available. If the team launcher is unavailable, use `aiset pm --workspace shop`.
+
+In the PM, open `/hooks` once to review and trust the generated Aiset hook. First ask:
+
+> *"Build the knowledge briefs. Document the architecture, conventions, test commands and known pitfalls for each repository."*
+
+No manual roster edits or model pins are needed. The PM chooses models for unpinned assignments; Settings lets
+you pin a preference. The main PM session starts with your Codex default. Low-cost models used in integration
+tests are not product defaults.
+
+<details>
+<summary>Windows: install from the checkout in a virtual environment</summary>
+
+With Python and Codex CLI installed, open PowerShell in the Aiset checkout:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .
+```
+
+Run the initialization and PM commands above, using your real project path. In another PowerShell window,
+open the same Aiset checkout and run:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+aiset --workspace shop
+```
+
+`aiset-init` becomes available after installing Aiset and activating this environment. Repeat activation when
+opening a new terminal; you do not need to reinstall Aiset for each project.
+
+</details>
+
+**What happens without `--provider`?**
+
+- A new workspace, or an older roster without a `provider` field, defaults to **Claude Code** (`claude`).
+- An existing team keeps the provider saved in `.claude/team/roster.json`, including **Codex** (`codex`).
+- An explicit `--provider claude` or `--provider codex` overrides the saved selection.
+
+Aiset does not select a provider based on which CLI is installed. Use `--provider codex` when first creating
+a Codex team; subsequent initialization can omit the flag.
+
+This generates native `.codex/agents/*.toml` roles and a Codex PM launcher. Single-repository setup is local
+by default and leaves project `AGENTS.md` unchanged; `--share` also adds managed project guidance.
+Shared briefs, boards and episodes stay in `.claude/team/`; existing Claude data is not migrated or deleted.
+Reinitialization preserves edited Codex files. The Office and Brain read native Codex session activity,
+file movements and token usage. Known model costs are labeled API reference estimates, not subscription bills.
+The generated hook provides code-index hints and the issue runner's publishing checks after your trust review.
+
+For an issue, use `aiset run 123` from its repository (requires signed-in GitHub CLI). Confirm the acceptance
+criteria, let the team work, inspect the result, then approve commit/push/draft PR separately. `--dry-run`
+previews the workflow; `--resume` continues the recorded native session. See the
+[Codex setup guide](docs/USER-GUIDE.md#codex-cli-preview) for details and runtime limits.
 
 ## Why aiset
 

@@ -84,7 +84,7 @@ def branch_exists(repo, name):
 
 def excluded(path):
     """True for a path with a `.claude` folder in it, in any case (`.Claude/` is the same folder on Windows)."""
-    return any(p.lower() == EXCLUDED for p in path.replace("\\", "/").split("/")[:-1])
+    return any(p.lower() in (EXCLUDED, ".codex") for p in path.replace("\\", "/").split("/")[:-1])
 
 
 def _status_paths(repo):

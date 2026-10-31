@@ -137,6 +137,90 @@ class RunFlowTest(TestCase):
     def remote_branches(self):
         return git(self.remote, "branch", "--list").split()
 
+    def test_codex_native_session_uses_shared_gates_and_remembers_id(self):
+        from aiset.run import codex_launch
+        ws = SimpleNamespace(path=self.ws, boards=self.boards, repos=["."], provider="codex", roster={"members": []})
+        def fake_codex(argv, cwd, bdir, remember):
+            self.assertEqual(argv[-3:], ["exec", "--json", "-"])
+            self.assertNotIn("--model", argv)
+            remember("native-codex-session")
+            with open(os.path.join(cwd, "app.py"), "a") as f:
+                f.write("# Codex change\n")
+            board.write_text(bdir, "brief.md", board.read_text(bdir, "brief.md").replace("STATUS: open", "STATUS: ready"))
+            return 0
+        with mock.patch.object(cli, "_workspace", return_value=ws), \
+                mock.patch.object(codex_launch, "ensure_hooks"), \
+                mock.patch.object(codex_launch, "run", side_effect=fake_codex) as run:
+            code, out, err = self.run_cli(["123"], ["y", "n"])
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(run.call_count, 1)
+        state = board.read_run(self.only_board())
+        self.assertEqual(state["provider"], "codex")
+        self.assertEqual(state["sessions"], ["native-codex-session"])
+        self.assertEqual(state["phase"], "ready")
+        self.assertEqual(self.remote_branches(), [])
+        self.gh.assert_not_called()
+
+    def test_codex_dry_run_never_starts_model_or_hook_server(self):
+        from aiset.run import codex_launch
+        ws = SimpleNamespace(path=self.ws, boards=self.boards, repos=["."], provider="codex", roster={"members": []})
+        with mock.patch.object(cli, "_workspace", return_value=ws), \
+                mock.patch.object(codex_launch, "ensure_hooks") as hooks, \
+                mock.patch.object(codex_launch, "run") as run:
+            code, out, err = self.run_cli(["123", "--dry-run"])
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("codex --sandbox workspace-write", out)
+        hooks.assert_not_called()
+        run.assert_not_called()
+        self.assertFalse(os.path.exists(self.boards))
+
+    def test_codex_resume_preserves_native_id_and_explicit_pm_model(self):
+        from aiset.run import codex_launch
+        ws = SimpleNamespace(path=self.ws, boards=self.boards, repos=["."], provider="codex",
+                             roster={"members": [{"id": "pm", "codex": {"model": "gpt-test", "reasoning": "low"}}]})
+        calls = []
+        def fake_codex(argv, cwd, bdir, remember):
+            calls.append(argv)
+            self.assertIn("gpt-test", argv)
+            remember("native-id")
+            if len(calls) == 2:
+                with open(os.path.join(cwd, "app.py"), "a") as f:
+                    f.write("# resumed\n")
+                board.write_text(bdir, "brief.md", board.read_text(bdir, "brief.md").replace("STATUS: open", "STATUS: ready"))
+                return 0
+            return 1
+        with mock.patch.object(cli, "_workspace", return_value=ws), \
+                mock.patch.object(codex_launch, "ensure_hooks"), \
+                mock.patch.object(codex_launch, "run", side_effect=fake_codex):
+            code, out, err = self.run_cli(["123"], ["y", "n"])
+            self.assertEqual(code, 0, out + err)
+            code, out, err = self.run_cli(["123", "--resume"], ["n"])
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("resume", calls[1])
+        self.assertIn("native-id", calls[1])
+        self.assertEqual(board.read_run(self.only_board())["sessions"], ["native-id"])
+        self.gh.assert_not_called()
+
+    def test_codex_publish_uses_shared_review_and_excludes_native_config(self):
+        from aiset.run import codex_launch
+        ws = SimpleNamespace(path=self.ws, boards=self.boards, repos=["."], provider="codex", roster={"members": []})
+        def fake_codex(argv, cwd, bdir, remember):
+            remember("native-id")
+            with open(os.path.join(cwd, "app.py"), "a") as f:
+                f.write("# finished\n")
+            os.makedirs(os.path.join(cwd, ".codex"))
+            with open(os.path.join(cwd, ".codex", "config.toml"), "w") as f:
+                f.write("# local\n")
+            board.write_text(bdir, "brief.md", board.read_text(bdir, "brief.md").replace("STATUS: open", "STATUS: ready"))
+            return 0
+        with mock.patch.object(cli, "_workspace", return_value=ws), \
+                mock.patch.object(codex_launch, "ensure_hooks"), \
+                mock.patch.object(codex_launch, "run", side_effect=fake_codex):
+            code, out, err = self.run_cli(["123"], ["y", "y"])
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(git(self.ws, "show", "--name-only", "--format=", "HEAD").split(), ["app.py"])
+        self.assertEqual(self.gh.call_args[0][0][:3], ["pr", "create", "--draft"])
+
     def test_dry_run_writes_and_launches_nothing(self):
         code, out, _ = self.run_cli(["123", "--dry-run"])
         self.assertEqual(code, 0)

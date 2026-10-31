@@ -433,7 +433,7 @@ body.no-lounge .room.pm { grid-column: span 12; }
     <div id="floor">
       <svg id="beams"></svg>
       <section class="room pm"><h2>PM Office <span>your point of contact</span></h2><div class="desks" id="z-pm"></div></section>
-      <section class="room lounge"><h2>Claude sessions <span>leads you're chatting with</span></h2><div class="sess" id="z-sessions"></div></section>
+      <section class="room lounge"><h2>__PROVIDER_LABEL__ sessions <span>leads you're chatting with</span></h2><div class="sess" id="z-sessions"></div></section>
       <section class="room eng"><h2>Engineering <span>service owners</span></h2><div class="desks" id="z-eng"></div></section>
       <section class="room qa"><h2>Quality <span>testing &amp; cross-service checks</span></h2><div class="desks" id="z-qa"></div></section>
       <section class="room infra"><h2>Infrastructure <span>cloud &amp; access</span></h2><div class="desks" id="z-infra"></div></section>
@@ -463,12 +463,13 @@ const KIND_ICON = { read: "📖", edit: "✏️", search: "🔎", shell: "⌨️
 const CONTRACTOR = { "Explore": ["Scout", "Explore agent", "#94a3b8"], "general-purpose": ["Gen", "General-purpose agent", "#a3a3a3"], "Plan": ["Archie", "Planning agent", "#c084fc"], "claude-code-guide": ["Guide", "Claude Code guide", "#fbbf24"], "statusline-setup": ["Stat", "Status line setup", "#a3a3a3"] };
 
 let S = null, selected = null, lastOk = 0;
+const providerLabel = "__PROVIDER_LABEL__";
 const pmName = () => S?.members.find(m => m.id === "pm")?.name || "PM";
 const ago = t => { if (!t) return ""; const s = Math.max(0, Math.round(Date.now() / 1000 - t)); if (s < 60) return s + "s ago"; if (s < 3600) return Math.floor(s / 60) + "m ago"; if (s < 86400) return Math.floor(s / 3600) + "h ago"; return Math.floor(s / 86400) + "d ago"; };
 const fmtTok = n => { n = n || 0; if (n >= 1e9) return (n / 1e9).toFixed(1) + "B"; if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"; if (n >= 1e3) return Math.round(n / 1e3) + "k"; return String(n); };
 const mdl = (m, title) => m ? `<span class="mdl mdl-${esc(m)}" title="${esc(title || m)}">${esc(m)}</span>` : "";
 const fmtCost = c => c == null ? "" : c >= 100 ? "$" + Math.round(c) : c >= 10 ? "$" + c.toFixed(1) : "$" + c.toFixed(2);
-const tokTitle = t => t ? `${fmtTok(t.total)} tokens${t.cost != null ? ` (≈${fmtCost(t.cost)} at list prices)` : ""} over ${t.turns} turns · fresh input ${fmtTok(t.input)} · cache write ${fmtTok(t.cacheWrite)} · cache read ${fmtTok(t.cacheRead)} · output ${fmtTok(t.output)}` : "";
+const tokTitle = t => t ? `${fmtTok(t.total)} tokens${t.cost != null ? ` (≈${fmtCost(t.cost)} at list prices${t.costBasis === "configured-model-api-reference" ? "; configured-model reference, not subscription billing" : ""})` : ""} over ${t.turns} turns · fresh input ${fmtTok(t.input)} · cache write ${fmtTok(t.cacheWrite)} · cache read ${fmtTok(t.cacheRead)} · output ${fmtTok(t.output)}` : "";
 const hhmm = t => new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 /* ---------- bot svg ---------- */
@@ -618,7 +619,7 @@ function renderContractors() {
 
 function renderSessions() {
   const z = $("#z-sessions");
-  if (!S.sessions.length) { z.innerHTML = `<div class="empty">No other Claude sessions in the last ${S.windowHours}h.</div>`; return; }
+  if (!S.sessions.length) { z.innerHTML = `<div class="empty">No other ${providerLabel} sessions in the last ${S.windowHours}h.</div>`; return; }
   z.innerHTML = S.sessions.slice(0, 5).map(s => `
     <div class="sess-card s-${s.state}" data-key="${esc(s.key)}">
       <span class="dot" style="background:var(--sc)"></span>
@@ -860,7 +861,7 @@ async function renderTaskRoutes(id) {
 function renderFeed() {
   const el = $("#p-feed");
   el.innerHTML = S.feed.slice(0, 100).map(e => {
-    const [nm, c] = e.who === "pm" ? who("pm") : e.who === "lead" ? ["Claude", "#e2e8f0"] : who(e.who);
+    const [nm, c] = e.who === "pm" ? who("pm") : e.who === "lead" ? [providerLabel, "#e2e8f0"] : who(e.who);
     return `<div class="feed-item" data-key="${esc(e.key)}"><span class="tm">${hhmm(e.t)}</span><span class="ic">${KIND_ICON[e.kind] || "•"}</span>
       <span class="tx"><span class="who" style="color:${c}">${esc(nm)}</span> <span style="color:var(--faint)">${esc(e.project)}</span> · ${esc(e.text)}</span></div>`;
   }).join("") || `<div class="empty">Quiet in here.</div>`;
@@ -868,6 +869,11 @@ function renderFeed() {
 }
 
 function renderTop() {
+  if (S.telemetrySupported === false) {
+    $("#stats").textContent = "Codex telemetry unavailable";
+    $("#alert").classList.remove("show");
+    return;
+  }
   const all = [...S.members.flatMap(m => m.instances.slice(0, 1)), ...S.contractors, ...S.sessions];
   const count = st => all.filter(x => x.state === st).length;
   const done = S.tasks.filter(t => t.column === "done").length;
@@ -878,7 +884,7 @@ function renderTop() {
   ].map(([s, l, n]) => `<span class="stat"><span class="dot" style="background:var(--${s})"></span>${l} <b>${n}</b></span>`).join("")
    + tokStat("Team", S.tokens.team) + tokStat("All sessions", S.tokens.all)
    + `<span class="stat">window <b>${S.windowHours}h</b></span>`;
-  const asks = [...S.members.flatMap(m => m.instances.slice(0, 1).map(i => ({ ...i, nm: m.name }))), ...S.sessions.map(s => ({ ...s, nm: "Claude" }))]
+  const asks = [...S.members.flatMap(m => m.instances.slice(0, 1).map(i => ({ ...i, nm: m.name }))), ...S.sessions.map(s => ({ ...s, nm: providerLabel }))]
     .filter(x => x.state === "waiting");
   const a = $("#alert");
   if (asks.length) {
@@ -897,7 +903,7 @@ function tokStat(label, t) {
 const TW = 64, TH = 32, WALL = 58;
 const ISO_ROOMS = [
   { id: "pm", zone: "pm", x: 0, y: 0, w: 7, d: 6, label: "PM Office", tint: "rgba(236,72,153,.10)" },
-  { id: "lounge", x: 8, y: 0, w: 13, d: 6, label: "Claude sessions", tint: "rgba(56,189,248,.05)" },
+  { id: "lounge", x: 8, y: 0, w: 13, d: 6, label: providerLabel + " sessions", tint: "rgba(56,189,248,.05)" },
   { id: "eng", zone: "eng", x: 0, y: 7, w: 21, d: 6, label: "Engineering", tint: "rgba(34,197,94,.05)" },
   { id: "qa", zone: "qa", x: 0, y: 14, w: 10, d: 6, label: "Quality", tint: "rgba(234,179,8,.05)" },
   { id: "infra", zone: "infra", x: 11, y: 14, w: 10, d: 6, label: "Infrastructure", tint: "rgba(249,115,22,.05)" },
@@ -1006,7 +1012,7 @@ function renderIso() {
     }
     sessions.slice(0, 5).forEach((s, i) => { const [px, py] = iso(10 + i * 2.2 + .9, 2.7); o += `<div class="iso-plate mini" data-key="${esc(s.key)}" ${at(px, py)} style="--c:#e2e8f0"></div>`; });
     if (sessions.length > 5) { const [px, py] = iso(18, 5); o += `<div class="iso-more" ${at(px, py)}>+${S.sessions.length - 5} more</div>`; }
-    if (roomOn("lounge") && !S.sessions.length) { const [px, py] = iso(14.5, 3.5); o += `<div class="iso-more" ${at(px, py)}>No other Claude sessions in the last ${S.windowHours}h.</div>`; }
+    if (roomOn("lounge") && !S.sessions.length) { const [px, py] = iso(14.5, 3.5); o += `<div class="iso-more" ${at(px, py)}>No other ${providerLabel} sessions in the last ${S.windowHours}h.</div>`; }
     contractors.slice(0, 10).forEach((c, i) => { const [px, py] = iso(1.2 + i * 2 + 1.2, 24.4); o += `<div class="iso-plate mini" data-key="${esc(c.key)}" ${at(px, py)} style="--c:${(CONTRACTOR[c.agentType] || [0, 0, "#94a3b8"])[2]}"></div>`; });
     if (roomOn("bench") && !S.contractors.length) { const [px, py] = iso(10.5, 23.5); o += `<div class="iso-more" ${at(px, py)}>No helper agents right now.</div>`; }
     const [wx, wy] = iso(0, 2.5, 32);
@@ -1082,7 +1088,7 @@ function isoCard(key, e) {
   } else {
     const s = [...S.sessions, ...S.contractors].find(x => x.key === key); if (!s) return;
     color = s.kind === "main" ? "#e2e8f0" : (CONTRACTOR[s.agentType] || [0, 0, "#94a3b8"])[2];
-    html = `<div class="plate"><span class="name">${esc(s.kind === "main" ? "Claude · " + s.project : (CONTRACTOR[s.agentType] || [s.agentType])[0])}</span></div>
+    html = `<div class="plate"><span class="name">${esc(s.kind === "main" ? providerLabel + " · " + s.project : (CONTRACTOR[s.agentType] || [s.agentType])[0])}</span></div>
       <div class="task"><span class="txt">${esc(s.title)}</span></div><div class="meta"><span>${esc(s.current || STATE_LABEL[s.state])}</span>${s.tokens?.total ? `<span>${mdl(s.tokens.model)} 🪙 ${fmtTok(s.tokens.total)}</span>` : ""}</div>`;
   }
   c.style.setProperty("--c", color);
@@ -1150,7 +1156,7 @@ async function renderDrawer() {
     if (!inst) return;
     const c = CONTRACTOR[inst.agentType];
     color = inst.kind === "main" ? "#e2e8f0" : (c ? c[2] : "#94a3b8");
-    name = inst.kind === "main" ? (inst.agentType === "pm" ? pmName() : "Claude") : (c ? c[0] : inst.agentType);
+    name = inst.kind === "main" ? (inst.agentType === "pm" ? pmName() : providerLabel) : (c ? c[0] : inst.agentType);
     role = inst.kind === "main" ? "Lead session · " + inst.project : (c ? c[1] : "Custom agent");
     duty = inst.title;
   }
@@ -1174,7 +1180,7 @@ async function renderDrawer() {
     h += `<div class="sec"><h4>Recent assignments</h4><div class="inst">${instances.map(i => `<button class="${i.key === inst?.key ? "on" : ""}" data-k="${esc(i.key)}" title="${esc(i.title)}">${STATE_LABEL[i.state]} · ${esc(i.title)}</button>`).join("")}</div></div>`;
   }
   if (!inst) {
-    h += `<div class="sec"><div class="box">${member?.id === "pm" ? `${esc(pmName())} isn't in a session yet. Start one with <code>__PM_COMMAND__</code>, describe what you need, and watch the team pick it up here.` : `No assignments in the time window. ${esc(pmName())} (or any Claude session) can assign work to this agent by name.`}</div></div>`;
+    h += `<div class="sec"><div class="box">${member?.id === "pm" ? `${esc(pmName())} isn't in a session yet. Start one with <code>__PM_COMMAND__</code>, describe what you need, and watch the team pick it up here.` : `No assignments in the time window. ${esc(pmName())} (or any ${providerLabel} session) can assign work to this agent by name.`}</div></div>`;
   } else {
     h += `<div class="sec"><h4>Now</h4><div class="box kv">
       <span>Status</span><span>${STATE_LABEL[st]} · ${esc(inst.current || "—")}</span>
@@ -1273,6 +1279,7 @@ async function tick() {
   try {
     const r = await fetch("/api/state");
     S = await r.json(); lastOk = Date.now();
+    STATE_LABEL.off = S.telemetrySupported === false ? "Untracked" : "Available";
     applyHelpers(S.helpers);
     applyUI(S.ui);
     render();
@@ -1281,7 +1288,7 @@ async function tick() {
   const live = $("#live");
   const stale = Date.now() - lastOk > 5000;
   live.classList.toggle("stale", stale);
-  live.querySelector("span").textContent = stale ? "disconnected — is aiset running?" : "live";
+  live.querySelector("span").textContent = stale ? "disconnected — is aiset running?" : S?.telemetrySupported === false ? "workspace connected" : "live";
 }
 window.addEventListener("resize", () => requestAnimationFrame(() => view === "iso" ? isoFit() : renderBeams()));
 setView(view);

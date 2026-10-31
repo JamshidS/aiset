@@ -474,6 +474,8 @@ def task_trails(office, roster, tid):
     for i, (r, steps) in enumerate(task_runs_steps(office, tid)):
         trail = []
         for st in steps:
+            if st.get("failed"):
+                continue
             # a shell step that read several files becomes one step per file
             first = lambda ln: int(re.match(r"\d+", ln).group()) if ln and re.match(r"\d+", ln) else None
             pseudo = ([{"tool": {"edit": "Edit", "search": "Grep"}.get(t["kind"], "Read"), "path": t["abs"], "offset": first(t.get("lines"))}

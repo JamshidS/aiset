@@ -12,6 +12,9 @@ if __name__ == "__main__" and not __package__:  # run as a file: python src/aise
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "pm":
+        from .launch_pm import main as pm_main
+        return pm_main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "run":
         from .run.cli import main as run_main
         return run_main(sys.argv[2:])

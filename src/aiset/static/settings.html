@@ -150,7 +150,7 @@ label.f { display: flex; flex-direction: column; gap: 5px; font-size: 11px; colo
 
     <section class="card" id="agents">
       <h2>Agents &amp; models</h2>
-      <p class="sub">The model goes into the <code>model:</code> line of each agent's file, so Claude Code uses it for every assignment. The PM is told which models you pinned and stops choosing one per task for those agents. Sessions that are already running keep their model until they restart.</p>
+      <p class="sub" id="model-help">The model goes into the <code>model:</code> line of each agent's file, so Claude Code uses it for every assignment. The PM is told which models you pinned and stops choosing one per task for those agents. Sessions that are already running keep their model until they restart.</p>
       <div class="bulk">Set every
         <select id="bulk-who" style="width:auto"><option value="all">agent</option><option value="eng">engineer</option><option value="other">non-PM agent</option></select>
         to <select id="bulk-model" style="width:auto"></select>
@@ -199,7 +199,8 @@ const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 let D = null;       // last payload from /api/settings
 let draft = null;   // edited copy of the roster fields
-const FIELDS = ["name", "role", "color", "duty", "model"];
+const FIELDS = ["name", "role", "color", "duty", "model", "reasoning"];
+const valueOf = (m, k) => D.provider === "codex" && ["model", "reasoning"].includes(k) ? m.codex?.[k] ?? "" : m[k] ?? "";
 
 function toast(msg, err) {
   const t = $("#toast"); t.textContent = msg; t.classList.toggle("err", !!err); t.classList.add("show");
@@ -219,7 +220,7 @@ async function load() {
 }
 function resetDraft() {
   draft = { team: D.roster.team || "", pmCommand: D.roster.pmCommand || "claude --agent pm",
-            members: D.roster.members.map(m => Object.fromEntries(["id", ...FIELDS].map(k => [k, m[k] ?? ""]))) };
+            members: D.roster.members.map(m => Object.fromEntries(["id", ...FIELDS].map(k => [k, valueOf(m, k)]))) };
 }
 
 /* ---------- agents ---------- */
@@ -234,7 +235,7 @@ function renderAgents() {
   box.innerHTML = draft.members.map((m, i) => {
     const f = D.agentFiles[m.id] || {};
     const flags = !f.exists ? `<span class="flag warn" title="Run aiset-init on the workspace to create it">no agent file</span>`
-      : f.generated ? "" : `<span class="flag mute" title="init_team.py won't re-render it; names and models are still synced">hand-edited</span>`;
+      : f.generated ? "" : `<span class="flag mute" title="${D.provider === "codex" ? "User edits are preserved. Roster changes do not overwrite this file." : "init_team.py won't re-render it; names and models are still synced"}">hand-edited</span>`;
     const note = D.models.find(x => x.id === m.model)?.note;
     return `<div class="agent" data-i="${i}" style="--c:${esc(m.color || "#94a3b8")}">
       <input type="color" class="sw" data-k="color" value="${esc(m.color || "#94a3b8")}" title="Colour" aria-label="Colour of ${esc(m.name)}">
@@ -242,11 +243,13 @@ function renderAgents() {
       <div class="role-c"><input type="text" data-k="role" value="${esc(m.role)}" maxlength="60" aria-label="Role"></div>
       <div class="model">
         <select data-k="model-sel" aria-label="Model of ${esc(m.name)}">${modelOptions(m.model)}</select>
-        <input type="text" data-k="model" value="${esc(m.model)}" placeholder="e.g. claude-sonnet-5-5" maxlength="64" style="display:${known(m.model) ? "none" : ""};font-family:var(--mono);font-size:12px" aria-label="Custom model id">
+        <input type="text" data-k="model" value="${esc(m.model)}" placeholder="${D.provider === "codex" ? "Codex model id available to your account" : "e.g. claude-sonnet-5-5"}" maxlength="64" style="display:${known(m.model) ? "none" : ""};font-family:var(--mono);font-size:12px" aria-label="Custom model id">
         <div class="hintline" data-note>${esc(note || (m.model ? "used as written in the agent file" : ""))}</div>
       </div>
       <button class="exp" title="Duty" aria-label="Show duty">▾</button>
-      <div class="more"><label class="f">Duty<textarea data-k="duty" maxlength="400">${esc(m.duty)}</textarea></label></div>
+      <div class="more"><label class="f">Duty<textarea data-k="duty" maxlength="400">${esc(m.duty)}</textarea></label>
+        ${D.provider === "codex" ? `<label class="f">Reasoning effort<select data-k="reasoning">${["", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"].map(v => `<option value="${v}"${m.reasoning === v ? " selected" : ""}>${v || "Inherit"}</option>`).join("")}</select><small>Choose an effort supported by your model.</small></label>` : ""}
+      </div>
     </div>`;
   }).join("");
   box.querySelectorAll(".agent").forEach(el => {
@@ -274,7 +277,7 @@ function changes() {
   if (draft.pmCommand.trim() !== (D.roster.pmCommand || "claude --agent pm")) out.pmCommand = draft.pmCommand;
   draft.members.forEach(m => {
     const o = D.roster.members.find(x => x.id === m.id), e = { id: m.id };
-    for (const k of FIELDS) if (String(m[k] ?? "").trim() !== String(o[k] ?? "")) e[k] = m[k];
+    for (const k of FIELDS) if (String(m[k] ?? "").trim() !== String(valueOf(o, k))) e[k] = m[k];
     if (Object.keys(e).length > 1) members.push(e);
   });
   if (members.length) out.members = members;
@@ -305,7 +308,7 @@ $("#save").addEventListener("click", async () => {
   try {
     D = await post({ roster: c });
     resetDraft(); renderAll();
-    toast("Saved. Agent files updated.");
+    toast(D.provider === "codex" ? "Saved. Hand-edited files were preserved. Restart the PM to load changes." : "Saved. Agent files updated.");
   } catch (e) { toast(e.message, true); }
   $("#save").disabled = false;
 });
@@ -321,7 +324,7 @@ $("#pm-cmd").addEventListener("input", e => { draft.pmCommand = e.target.value; 
 
 /* ---------- layout & windows: saved on change ---------- */
 const TABS = [["board", "Task board", "assignments by column: clarify, in progress, failed review, done"], ["boards", "Tasks", "the PM's tasks with tokens and cost"], ["feed", "Live feed", "every tool call and message across the team"]];
-const ROOMS = [["lounge", "Claude sessions", "lead sessions you're chatting with"], ["qa", "Quality", "tester and integration checker"], ["infra", "Infrastructure", "cloud and access agents"], ["bench", "Contractors", "built-in helper agents (Explore, Plan…)"]];
+const ROOMS = [["lounge", "__PROVIDER_LABEL__ sessions", "lead sessions you're chatting with"], ["qa", "Quality", "tester and integration checker"], ["infra", "Infrastructure", "cloud and access agents"], ["bench", "Contractors", "built-in helper agents (Explore, Plan…)"]];
 const PAGES = [["brain", "Brain", "graph of what the team knows and touched"], ["architecture", "Architecture", "system map of the repositories"]];
 const DISPLAY = [["stats", "Token and cost totals", "the pills in the office's top bar"], ["beams", "Assignment lines", "lines from the PM to the agents it's waiting on"], ["alert", "\"Needs you\" banner", "the red bar when the PM asks you something"], ["hint", "\"Talk to your PM\" hint", "the line under the side panel"]];
 const toggle = (path, label, note, on, disabled) => `<div class="row"><div class="t">${esc(label)}<small>${esc(note)}</small></div>
@@ -367,6 +370,7 @@ function renderPaths() {
     .map(([k, v]) => `<span>${k}</span><code>${esc(v)}</code>`).join("");
 }
 function renderAll() {
+  if (D.provider === "codex") $("#model-help").textContent = "PM decides selects available models per assignment. The main PM uses your Codex default. Custom model and reasoning values pin your preferences. Hand-edited files are preserved, so their values may differ from the roster. Restart sessions after changes.";
   $("#bulk-model").innerHTML = D.models.map(m => `<option value="${esc(m.id)}">${esc(m.label)}</option>`).join("");
   renderAgents(); renderTeam(); renderLayout(); renderPaths();
 }

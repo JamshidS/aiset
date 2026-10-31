@@ -55,6 +55,10 @@ def set_pinned(text, roster):
 
 
 def sync(roster):
+    from . import providers, workspace
+    if providers.name(roster) == "codex":
+        from .providers.codex import sync as sync_codex
+        return sync_codex(workspace.WORKSPACE, roster)
     changed = []
     for m in roster["members"]:
         path = os.path.join(AGENTS, m["id"] + ".md")

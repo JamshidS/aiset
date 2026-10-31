@@ -109,9 +109,11 @@ GRAPHS = TEAM + "/graph"
 PROJECTS = norm(os.path.join(CLAUDE_HOME, "projects"))
 
 
-def script_command(name):
+def script_command(name, interpreter=None):
     """How an agent file runs one of aiset's scripts: `python "<package>/<name>.py"`, which works in any shell."""
-    py = "python" if shutil.which("python") else "python3"
+    py = f'"{interpreter.replace(chr(92), "/")}"' if interpreter else ("python" if shutil.which("python") else "python3")
+    if interpreter and os.name == "nt":
+        py = "& " + py  # Codex's Windows shell is PowerShell.
     return f'{py} "{os.path.join(HERE, name + ".py").replace(chr(92), "/")}"'
 
 

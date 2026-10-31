@@ -86,7 +86,10 @@ def _workspace(arg):
     from .. import workspace
     if not workspace.WORKSPACE or not os.path.isfile(workspace.ROSTER):
         raise RunError("no aiset team here. Run `aiset-init <folder>` first, or pass --workspace <folder|team>")
-    return SimpleNamespace(path=workspace.WORKSPACE, boards=workspace.BOARDS, repos=workspace.roster_repos())
+    from .. import providers
+    roster = workspace.load_roster()
+    return SimpleNamespace(path=workspace.WORKSPACE, boards=workspace.BOARDS, repos=workspace.roster_repos(),
+                           provider=providers.name(roster), roster=roster)
 
 
 def _same(a, b):
@@ -252,19 +255,27 @@ def start(ws, args, repo_path, ref):
         print("Cut to size: " + ", ".join(snap.truncated))
     if found.dropped:
         print(f"{found.dropped} more criteria were dropped (limit {len(acs)})")
-    for w in launch.permission_warnings(ws.path):
+    provider = getattr(ws, "provider", "claude")
+    for w in (launch.permission_warnings(ws.path) if provider == "claude" else []):
         print("Warning: " + w)
     if args.dry_run:
         if dirty:
             print("The working tree isn't clean; a real run would stop here: " + ", ".join(dirty[:10]))
         print("Would write: " + ", ".join(os.path.join(bdir, n) for n in ("issue.md", "brief.md", "log.md", "run.json")))
-        argv = launch.claude_argv(bdir, "<new session id>", model=args.model, name=f"aiset run #{ref.number}")
+        if provider == "codex":
+            from . import codex_launch
+            argv = codex_launch.argv(bdir, model=args.model)
+        else:
+            argv = launch.claude_argv(bdir, "<new session id>", model=args.model, name=f"aiset run #{ref.number}")
         print("Would run in " + ws.path + ":\n  " + subprocess.list2cmdline(argv))
         print("Dry run: nothing written, nothing launched.")
         return 0
     if dirty:
         raise RunError(f"{repo_path} has uncommitted changes; commit or stash them first:\n  " + "\n  ".join(dirty[:20]))
     launch.check_path(bdir)
+    if provider == "codex":
+        from . import codex_launch
+        codex_launch.ensure_hooks(ws.path)
 
     while True:  # gate 1
         a = ask("Work on these criteria? [y/N/e(dit)] ", "yne")
@@ -280,7 +291,7 @@ def start(ws, args, repo_path, ref):
     board.write_text(bdir, "issue.md", snap.markdown)
     board.write_text(bdir, "brief.md", board.brief_md(ref.repo, ref.number, title, data.get("url"), acs, board.now_iso()))
     board.write_text(bdir, "log.md", "")
-    state = {"version": 1,
+    state = {"version": 1, "provider": provider,
              "issue": {"repo": ref.repo, "number": ref.number, "url": data.get("url"),
                        "updatedAt": data.get("updatedAt"), "bodySha256": snap.body_sha256},
              "title": title, "repoPath": repo_path.replace("\\", "/"), "base": base,
@@ -316,6 +327,12 @@ def _verify(state, target):
 
 def session(ws, bdir, state, resume, model=None, target=None):
     _verify(state, target)
+    provider = getattr(ws, "provider", "claude")
+    if state.get("provider", "claude") != provider:
+        raise RunError("this board belongs to another provider; switch the team back or use --fresh")
+    if provider == "codex":
+        from . import codex_launch
+        codex_launch.ensure_hooks(ws.path)
     repo_path, branch = state["repoPath"], state["branch"]
     launch.check_path(bdir)
     if gitops.current_branch(repo_path) != branch:
@@ -325,22 +342,39 @@ def session(ws, bdir, state, resume, model=None, target=None):
             gitops.switch(repo_path, branch)
         else:
             gitops.create_branch(repo_path, branch)
-    sid = state["sessions"][-1] if resume else str(uuid.uuid4())
-    if not resume:
+    sid = state["sessions"][-1] if resume else (None if provider == "codex" else str(uuid.uuid4()))
+    if not resume and sid:
         state["sessions"].append(sid)
     state["phase"] = "working"
     board.write_run(bdir, state)
-    settings = launch.write_gate_settings(bdir)
-    for w in launch.permission_warnings(ws.path):
-        print("Warning: " + w)
-    argv = launch.claude_argv(bdir, sid, resume=resume, model=model, settings_path=settings,
-                              name=f"aiset run #{state['issue']['number']}")
+    if provider == "codex":
+        from ..providers.codex import options
+        member = next((m for m in ws.roster.get("members", []) if m["id"] == "pm"), {"id": "pm"})
+        pinned_model, effort = options(member)
+        argv = codex_launch.argv(bdir, session_id=sid, model=model or pinned_model, effort=effort)
+    else:
+        settings = launch.write_gate_settings(bdir)
+        for w in launch.permission_warnings(ws.path):
+            print("Warning: " + w)
+        argv = launch.claude_argv(bdir, sid, resume=resume, model=model, settings_path=settings,
+                                  name=f"aiset run #{state['issue']['number']}")
     board.log(bdir, f"{'resumed' if resume else 'started'} PM session {sid}")
-    print(f"Starting the PM ({'resume ' if resume else ''}session {sid}). Type /exit when the PM says the work is ready.")
-    code = launch.run_claude(argv, ws.path)
+    print(f"Starting the PM ({provider}, {'resume ' if resume else ''}session {sid or 'new'})." +
+          (" Type /exit when the PM says the work is ready." if provider == "claude" else " Progress appears below."))
+    if provider == "codex":
+        def remember(native_id):
+            nonlocal sid
+            sid = native_id
+            if native_id not in state["sessions"]:
+                state["sessions"].append(native_id)
+            board.write_run(bdir, state)
+            board.log(bdir, f"Codex session {native_id}")
+        code = codex_launch.run(argv, ws.path, bdir, remember)
+    else:
+        code = launch.run_claude(argv, ws.path)
     board.log(bdir, f"PM session {sid} ended (exit code {code})")
-    if board.brief_status(bdir) != "ready":
-        print(f"The session ended (exit code {code}) and brief.md doesn't say STATUS: ready.")
+    if board.brief_status(bdir) != "ready" or (provider == "codex" and code):
+        print(f"The session ended (exit code {code}); it failed or brief.md doesn't say STATUS: ready.")
         if ask("Go to the publish step anyway? [y/N] ", "yn") != "y":
             print(f"Nothing published. Continue later with: aiset run {state['issue']['number']} --resume")
             return 0
@@ -432,7 +466,7 @@ def gate2(ws, bdir, state, target=None):
     print(_show(gitops.diffstat(repo_path, shown, since=start)))
     held = gitops.left_out(repo_path)
     if held:
-        print(f"Left out of the commit (under .claude/): {len(held)} files")
+        print(f"Left out of the commit (under .claude/ or .codex/): {len(held)} files")
     earlier, more = gitops.unpushed(repo_path, skip=[c["sha"] for c in commits])
     marked = [c for c in earlier if c["claude"] or c["trailer"]]
     if earlier or more:
