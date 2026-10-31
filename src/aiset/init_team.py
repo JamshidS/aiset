@@ -44,7 +44,7 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 if __name__ == "__main__" and not __package__:  # run as a file: python src/aiset/init_team.py
     sys.path.insert(0, os.path.dirname(HERE))
     __package__ = "aiset"
-from . import registry  # noqa: E402
+from . import providers, registry  # noqa: E402
 from .workspace import script_command  # noqa: E402
 from .atomic import write_text_atomic  # noqa: E402
 
@@ -364,7 +364,10 @@ def nudge_hook(ws):
             f"          command: {quoted}\n          timeout: 10\n")
 
 
-def write_agents(ws, roster, repos, force):
+def write_agents(ws, roster, repos, force, *, share=False):
+    if providers.name(roster) == "codex":
+        from .providers.codex import write_agents as write_codex
+        return write_codex(ws, roster, repos, force, project_guidance=share or not is_monorepo(ws))
     from .sync_names import set_model, set_pinned
     team_dir = fwd(os.path.join(os.path.abspath(ws), ".claude", "team"))
     agents_dir = os.path.join(ws, ".claude", "agents")
@@ -438,6 +441,7 @@ def main():
     ap.add_argument("--version", action="version", version="aiset-init " + __version__)
     ap.add_argument("folder")
     ap.add_argument("--team", help="team name shown in the office (default: folder name)")
+    ap.add_argument("--provider", choices=("claude", "codex"), help="coding provider (default: saved provider, otherwise claude)")
     ap.add_argument("--force", action="store_true", help="overwrite agent files even if you edited them")
     ap.add_argument("--group", choices=("repo", "stack"), help="one engineer per repo, or per stack (default: stack above 12 services)")
     ap.add_argument("--share", action="store_true", help="don't hide .claude/ from git in a monorepo")
@@ -450,18 +454,27 @@ def main():
     if not repos:
         raise SystemExit(f"no git repositories (or, in a monorepo, service folders) under {ws}")
     team_dir = os.path.join(ws, ".claude", "team")
-    for sub in ("knowledge", "tasks", "episodes", "graph"):
-        os.makedirs(os.path.join(team_dir, sub), exist_ok=True)
     roster_path = os.path.join(team_dir, "roster.json")
     old = None
     if os.path.exists(roster_path):
         with open(roster_path, encoding="utf-8-sig") as f:
             old = json.load(f)
+    try:
+        previous_provider = providers.name(old or {})
+        provider = args.provider or previous_provider
+        providers.check_cli(provider)
+    except ValueError as e:
+        ap.error(str(e))
     if is_monorepo(ws):
         repos = carry_root_unit(ws, scanned, old)
     group = args.group or (old or {}).get("group") or ("stack" if sum(r["name"] != "." for r in repos) > 12 else "repo")
     old_team = (old or {}).get("team")  # build_roster renames the old roster in place
     roster, added = build_roster(ws, args.team, repos, old, group)
+    if provider == "codex" or "provider" in roster:
+        roster["provider"] = provider
+    old_command = providers.pm_command(previous_provider)
+    if provider != previous_provider and roster.get("pmCommand", old_command) == old_command:
+        roster["pmCommand"] = providers.pm_command(provider)
     rescoped = scope_root_owner(roster, repos) if is_monorepo(ws) else []
     if args.no_nudge:
         roster["nudge"] = False
@@ -472,15 +485,26 @@ def main():
         if "/.claude/" not in _read(exclude).split():
             with open(exclude, "a", encoding="utf-8") as f:
                 f.write("\n# aiset team (init_team.py)\n/.claude/\n")
+        if provider == "codex" and "/.codex/" not in _read(exclude).split():
+            with open(exclude, "a", encoding="utf-8") as f:
+                f.write("\n# aiset Codex agents (init_team.py)\n/.codex/\n")
         hidden = True
+    try:
+        written, kept = write_agents(ws, roster, repos, args.force, share=args.share)
+    except ValueError as e:
+        ap.error(str(e))
+    for sub in ("knowledge", "tasks", "episodes", "graph"):
+        os.makedirs(os.path.join(team_dir, sub), exist_ok=True)
     write_text_atomic(roster_path, json.dumps(roster, indent=2, ensure_ascii=False) + "\n", newline="\n")
-    written, kept = write_agents(ws, roster, repos, args.force)
     briefs = write_briefs(ws, roster)
     registry.register(roster["team"], ws)
     launcher, bin_dir, on_path = None, None, False
     if not args.no_launcher:
         bin_dir, on_path = registry.scripts_dir()
-        launcher = registry.write_launcher(roster["team"], ws, bin_dir)
+        if provider == "codex":
+            launcher = registry.write_launcher(roster["team"], ws, bin_dir, provider=provider)
+        else:
+            launcher = registry.write_launcher(roster["team"], ws, bin_dir)
 
     services = sum(r["name"] != "." for r in scanned) or len(scanned)
     print(f"Team '{roster['team']}' in {ws}" + (f"  (monorepo, {services} service{'' if services == 1 else 's'}, one engineer per {group})" if is_monorepo(ws) else ""))
@@ -500,7 +524,7 @@ def main():
         print(f"command: {name} starts the PM from any folder ({launcher})")
         if on_path:
             pm_cmd = name
-            ours = {"claude --agent pm"}  # values we wrote; one edited in Settings stays
+            ours = {providers.pm_command(provider), old_command}  # custom commands stay
             if old_team:
                 ours.add(registry.slug(old_team) + "-pm")  # the launcher name before a team rename
             current = roster.get("pmCommand", "claude --agent pm")
@@ -511,10 +535,26 @@ def main():
             print(f"         {bin_dir} is not on PATH yet: add it, or run the file by its full path")
     elif not args.no_launcher:
         print(f"command: not written: {name} already exists in {bin_dir} and wasn't made by aiset-init")
-    print(f"""
+    fallback = providers.pm_command(provider)
+    if provider == "codex":
+        fallback = script_command("launch_pm", sys.executable) + f' --workspace "{fwd(ws)}"'
+        print("provider: codex (native PM, Office/Brain activity, tokens and issue runner)")
+        print("hooks:   open /hooks once in Codex to review and trust Aiset's code-index hints and publishing gate")
+        if os.path.isfile(os.path.join(ws, "AGENTS.override.md")):
+            print("note:    AGENTS.override.md takes precedence over AGENTS.md; the PM launcher still loads its explicit instructions")
+    next_command = pm_cmd or (fallback if provider == "codex" else f'cd "{ws}" && {fallback}')
+    if provider == "codex":
+        print(f"""
+Next:
+  1. {next_command}
+     First ask: "build the knowledge briefs"
+  2. In another terminal: aiset --workspace "{roster['team']}"
+     Rename the team and choose optional model pins in Settings.""")
+    else:
+        print(f"""
 Next:
   1. Rename the team in {roster_path} if you like, then run this again.
-  2. {pm_cmd or f'cd "{ws}" && claude --agent pm'}
+  2. {next_command}
      First ask: "build the knowledge briefs"
   3. aiset --workspace "{roster['team']}"      (the office; from inside {ws}, plain `aiset` works too)""")
 

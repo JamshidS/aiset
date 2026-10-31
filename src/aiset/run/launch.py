@@ -54,10 +54,13 @@ def write_gate_settings(board_dir):
     return path
 
 
-def start_prompt(board_dir):
+def start_prompt(board_dir, *, interactive=True):
     """One line: the template with {{BOARD}} filled in, comments and line breaks folded away."""
     with open(PROMPT_FILE, encoding="utf-8") as f:
         text = f.read()
+    finish = ("tell the user to type /exit so aiset run can show the result" if interactive else
+              "finish your response and return control to the host; no manual exit command is needed")
+    text = text.replace("{{FINISH}}", finish)
     text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
     text = " ".join(text.replace("{{BOARD}}", _slash(board_dir)).split())
     return CMD_UNSAFE.sub("", text)

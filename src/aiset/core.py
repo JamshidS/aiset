@@ -542,16 +542,22 @@ def board_detail(bid):
 def tokens_of(rows):
     """Token totals (same shape as Transcript.tokens) for a subset of usage rows."""
     out = Counter()
+    unknown_cost = False
+    models = set()
+    model_totals = Counter()
     for fam, *vals, cost in rows:
+        models.add(fam)
         for k, v in zip(("input", "cacheWrite", "cacheRead", "output"), vals):
             out[k] += v
-        out[fam] += sum(vals)
-        out["cost"] += cost
+        model_totals[fam] += sum(vals)
+        unknown_cost = unknown_cost or cost is None
+        out["cost"] += cost or 0
     return {
         "total": out["input"] + out["cacheWrite"] + out["cacheRead"] + out["output"],
         "input": out["input"], "cacheWrite": out["cacheWrite"], "cacheRead": out["cacheRead"], "output": out["output"],
-        "turns": len(rows), "context": 0, "model": rows[-1][0] if rows else None, "cost": round(out["cost"], 4),
-        "byModel": {f: out[f] for f in ("opus", "sonnet", "haiku", "fable") if out[f]},
+        "turns": len(rows), "context": 0, "model": rows[-1][0] if rows else None,
+        "cost": None if unknown_cost else round(out["cost"], 4),
+        "byModel": {f: model_totals[f] for f in sorted(models) if model_totals[f]},
     }
 
 
@@ -792,11 +798,12 @@ def task_runs_steps(office, tid):
     every = {**(office.history.transcripts if office.history else {}), **office.transcripts}
     out = []
     for r in sorted(usage["runs"], key=lambda r: r["t"]):
-        steps = transcript_steps(r["key"])
+        session = every.get(r["key"])
+        steps = list(session.steps) if hasattr(session, "steps") else transcript_steps(r["key"])
         if r["lead"]:
             lead = every.get(r["key"])
             mine = {k for k, v in lead.task_of.items() if (v or "current:" + lead.path) == tid} if lead else set()
-            steps = [s for s in steps if s["key"] in mine]
+            steps = [s for s in steps if (s.get("taskId") or "current:" + lead.path) == tid] if hasattr(lead, "steps") else [s for s in steps if s["key"] in mine]
         if steps:
             out.append((r, steps))
     return out
@@ -809,6 +816,8 @@ def task_routes(office, tid):
     runs, files = [], {}
     for r, steps in task_runs_steps(office, tid):
         for s in steps:
+            if s.get("failed"):
+                continue
             if s.get("targets"):
                 s["targets"] = [tg for tg in s["targets"] if tg["area"] != "tmp"]
             touched = s.get("targets") or ([{"kind": s["kind"], "area": s["area"], "path": s["path"]}]
@@ -833,14 +842,22 @@ def task_routes(office, tid):
 
 def add_tokens(items):
     out = Counter(dict.fromkeys(("total", "input", "cacheWrite", "cacheRead", "output", "turns", "cost"), 0))
+    unknown_cost = False
+    bases = set()
     for x in items:
+        if x.get("costBasis"):
+            bases.add(x["costBasis"])
+        unknown_cost = unknown_cost or (x.get("cost") is None and x.get("total", 0) > 0)
         for k in ("total", "input", "cacheWrite", "cacheRead", "output", "turns", "cost"):
-            out[k] += x.get(k, 0)
+            out[k] += x.get(k) or 0
         for f, n in x["byModel"].items():
             out["model:" + f] += n
     by_model = {k[6:]: v for k, v in out.items() if k.startswith("model:")}
-    out["cost"] = round(out["cost"], 4)
-    return {**{k: v for k, v in out.items() if not k.startswith("model:")}, "byModel": by_model}
+    out["cost"] = None if unknown_cost else round(out["cost"], 4)
+    result = {**{k: v for k, v in out.items() if not k.startswith("model:")}, "byModel": by_model}
+    if bases:
+        result["costBasis"] = next(iter(bases)) if len(bases) == 1 else "mixed-reference"
+    return result
 
 
 class Office:
@@ -859,6 +876,19 @@ class Office:
         return t
 
     def scan(self):
+        from .providers.runtime import runtime
+        if getattr(self, "_runtime_provider", None) != self.roster.get("provider", "claude"):
+            self.transcripts.clear()
+            self.task_usage.clear()
+            self._history_scan = 0
+            if self.history:
+                self.history.roster = self.roster
+                self.history.transcripts.clear()
+                self.history.task_usage.clear()
+            self._runtime_provider = self.roster.get("provider", "claude")
+        return runtime(self.roster).scan(self)
+
+    def _scan_claude(self):
         now = time.time()
         live = []
         for path in glob(os.path.join(PROJECTS, "*", "*.jsonl")):
@@ -938,7 +968,7 @@ class Office:
         live = self.scan()
         roster_ids = {m["id"] for m in self.roster["members"]}
         pm_name = next((m["name"] for m in self.roster["members"] if m["id"] == "pm"), "PM")
-        lead_name = lambda t: (f"{pm_name} (PM)" if t.agent_setting == "pm" else "Claude") + f" · {t.project}"
+        lead_name = lambda t: (f"{pm_name} (PM)" if t.agent_setting == "pm" else ("Codex" if getattr(t, "provider", "claude") == "codex" else "Claude")) + f" · {t.project}"
 
         names = {"Explore": "Scout", "general-purpose": "Gen", "Plan": "Archie",
                  **{m["id"]: m["name"] for m in self.roster["members"]}}

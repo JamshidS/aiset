@@ -12,6 +12,7 @@ import os
 import re
 import shlex
 import shutil
+import sys
 
 from .atomic import write_text_atomic
 
@@ -86,21 +87,33 @@ def scripts_dir():
     return os.path.join(home(), "bin"), False
 
 
-def write_launcher(team, path, bin_dir):
+def write_launcher(team, path, bin_dir, provider="claude"):
     """Write <slug>-pm into bin_dir. Returns its path, or None when a file of ours can't be written there
     (a command of the same name that aiset didn't make is left alone)."""
     name = slug(team) + "-pm"
     path = os.path.abspath(path)
+    if provider not in ("claude", "codex"):
+        raise ValueError(f"unknown coding provider {provider!r}")
+    command = "claude --agent pm"
+    if provider == "codex":
+        script = os.path.join(os.path.dirname(__file__), "launch_pm.py")
+        if os.name == "nt":
+            command = (f'"{sys.executable.replace("%", "%%")}" "{script.replace("%", "%%")}" '
+                       f'--workspace "{path.replace("%", "%%")}"')
+        else:
+            command = shlex.quote(sys.executable) + " " + shlex.quote(script) + " --workspace " + shlex.quote(path)
     if os.name == "nt":
         target = os.path.join(bin_dir, name + ".cmd")
         # cmd.exe runs claude.cmd here, so PowerShell's script execution policy doesn't apply;
         # setlocal gives the folder back to an interactive cmd.exe when the session ends
         text = (f"@echo off\r\nrem {MARKER} for the {team} team's PM (made by aiset-init)\r\nsetlocal\r\n"
-                f'cd /d "{path.replace("%", "%%")}" || exit /b 1\r\nclaude --agent pm %*\r\n')
+                f'cd /d "{path.replace("%", "%%")}" || exit /b 1\r\n{command} %*\r\n')
+        if provider == "codex":
+            text = text.replace("setlocal\r\n", "setlocal DisableDelayedExpansion\r\n")
     else:
         target = os.path.join(bin_dir, name)
         text = (f"#!/bin/sh\n# {MARKER} for the {team} team's PM (made by aiset-init)\n"
-                f"cd {shlex.quote(path)} || exit 1\nexec claude --agent pm \"$@\"\n")
+                f"cd {shlex.quote(path)} || exit 1\nexec {command} \"$@\"\n")
     if os.path.exists(target):
         try:
             with open(target, encoding="utf-8", errors="replace") as f:

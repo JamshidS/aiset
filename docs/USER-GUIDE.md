@@ -47,6 +47,128 @@ Without a workspace (no `--workspace`, not inside one, and for the office: no te
 
 `AISET_WORKSPACE` (or the older `AGENT_OFFICE_WORKSPACE`) selects a workspace by folder path. `AISET_CLAUDE_HOME` moves the Claude Code data root from `~/.claude`: the office reads transcripts from `<AISET_CLAUDE_HOME>/projects`, and without a workspace its team and agents come from that root's `team` and `agents` folders. A selected workspace keeps its own `.claude/team` and `.claude/agents` paths. Set the variable before starting aiset, for example `AISET_CLAUDE_HOME=~/demo-claude aiset` in a POSIX shell or `$env:AISET_CLAUDE_HOME = "$HOME/demo-claude"; aiset` in PowerShell. An unset or empty value retains the default paths; `~` is expanded and relative paths are resolved from the launch directory. This is useful for demos or tests that should read synthetic transcripts instead of your real sessions.
 
+## Codex CLI (preview)
+
+Use a current [Codex CLI](https://learn.chatgpt.com/docs/cli/reference) supporting
+[custom project agents](https://learn.chatgpt.com/docs/agent-configuration/subagents), installed on `PATH`
+and signed in. The integration has been exercised with `codex-cli 0.166.0-alpha.5.1`.
+Aiset detects a missing CLI before generating the team. Older CLIs without project custom-agent support
+are not supported. Model availability and allowed reasoning efforts depend on your account and chosen model.
+
+```sh
+aiset-init ./my-project --team myteam --provider codex
+myteam-pm
+# If the launcher isn't on PATH:
+aiset pm --workspace myteam
+aiset --workspace myteam
+```
+
+Without installing the package, run `python src/aiset/init_team.py <folder> --provider codex`
+and `python src/aiset/launch_pm.py --workspace <folder>` from the source checkout.
+The generated launcher uses the Python interpreter that initialized the team. Reinitialize if you move
+the package or remove that Python environment. The launcher passes extra Codex flags through and accepts
+`--model <model-id>` to override the PM model for one session.
+
+### Files and provider selection
+
+- `.codex/agents/<roster-id>.toml` defines each native custom agent. Native names use an `aiset_` prefix
+  to avoid reserved task names such as `root`. Normalized names receive a stable suffix. Roster ids and
+  memory filenames stay unchanged. The generated PM table lists the actual native names to delegate to.
+- `.codex/aiset/pm.md` contains the main PM's instructions. `aiset pm` opens a native Codex session
+  with a prompt to read this file. A `pm.toml` subagent definition alone does not configure the main session.
+- `.codex/hooks.json` installs native code-index hints and the issue publishing tripwire. Open `/hooks`
+  once in Codex to review and trust the exact definition. Aiset does not modify Codex's trust store.
+- In a folder of repositories, or with `--share`, `AGENTS.md` gets an Aiset section bounded by
+  `<!-- aiset:codex:start -->` and `<!-- aiset:codex:end -->`. A single-repository local setup leaves
+  `AGENTS.md` unchanged, so initialization does not introduce a product-file diff before `aiset run`.
+  PM and subagent instructions are loaded explicitly from `.codex/`.
+  Instructions outside that section stay unchanged. An active `AGENTS.override.md` takes precedence over
+  `AGENTS.md`; the launcher still loads the PM instructions explicitly. Respect Codex's project trust settings.
+- `.claude/team/` remains the shared store for roster, briefs, tasks, episodes and code graphs.
+  No destructive migration or duplicate memory is created. Existing `.claude/agents/` files stay intact.
+
+The saved roster has `"provider": "codex"`. Reinitializing without `--provider` keeps it. A roster without
+that field uses Claude Code, as before. Select `--provider claude` or `--provider codex` explicitly to switch.
+The first preview supports one active provider per workspace. In a monorepo, `.codex/` and `.claude/`
+are hidden through `.git/info/exclude` unless `--share` is given. Review `AGENTS.md` changes before committing it.
+
+### Models and reasoning
+
+Settings defaults to **PM decides** for delegated agents. The PM chooses an available model and reasoning
+effort for each task, recording its choice and reason in the assignment. If the session cannot list available
+models, the PM inherits the session model instead of inventing an id. The main PM starts with your CLI default.
+Settings also lets you pin a custom model or reasoning effort; explicit preferences take priority over the PM.
+Codex preferences live in each member's `codex` object, separate from the existing Claude `model` field:
+
+```json
+{"id": "root", "codex": {"model": "gpt-6-luna", "reasoning": "low"}}
+```
+
+Choose a model available to your account. The example is an optional pin, not a product default or a setup
+requirement. Integration demos pin inexpensive models only in their isolated test roster. A PM `--model` flag only
+overrides that PM session, not a custom subagent's explicitly pinned model. Changes apply to new sessions.
+No Claude model alias is copied into Codex preferences. Aiset does not change your Codex permissions,
+approval policy, credentials or global configuration.
+
+### Preservation on reinitialization
+
+`.codex/aiset/generated.json` records hashes of Aiset's generated files. An unchanged generated file can be
+updated. A hand-edited file is preserved and reported, even if its generated comment remains.
+`--force` can replace an edited file that the manifest already owns. It never claims an unrelated existing
+file, and it never overwrites an edited managed section in `AGENTS.md`. Other user instructions, briefs,
+episodes and the other provider's files remain intact. Removing the manifest makes existing files unowned
+and protected. Malformed manifests or Aiset section markers need repair before reinitialization.
+If you change a custom TOML agent's `name`, update your PM instructions to delegate to that name as well.
+
+Settings updates the roster and unchanged generated files. Edited files keep their own values, which may
+differ from the roster. It labels these files as hand-edited. A malformed manifest leaves ownership unknown
+and protected rather than silently regenerating files.
+
+### Task walkthrough and limits
+
+First ask: "Build the knowledge briefs." For a small task, give the PM acceptance criteria and explicitly
+ask it to delegate to the owning engineer, then have QA verify. The PM creates a board in
+`.claude/team/tasks/<date>-<slug>/`, engineers write `handoff/<roster-id>.md`, QA returns its checks,
+and the PM records an episode at completion. Read these files to verify progress and retained knowledge.
+Keep writes to the same file under one owner when tasks run in parallel.
+
+The browser stays at `http://127.0.0.1:8765`. Office, Brain, task routes and costs share the same views as Claude.
+Codex activity comes from local native JSONL rollouts, scoped to this workspace and its child sessions.
+Completed patches are confirmed edits; shell reads/searches are conservative command analysis.
+Stale telemetry is labeled unknown rather than assumed to be a live approval request. The adapter supports
+the tested 0.166 record shapes and the older response-item usage format; unknown records are ignored.
+If a future CLI stops writing local JSONL, memory and PM usage continue but telemetry needs an adapter update.
+
+Token totals separate fresh and cached input and avoid counting reasoning output twice. Costs use dated
+Standard API reference rates for known configured models (currently Luna, Sol, Terra and Astra), including
+the long-context threshold. Unknown models or cache retention return an unavailable cost, never $0.
+These are comparison estimates: session configuration does not prove the executed model, service tier,
+subscription consumption or invoice. Your signed-in Codex account and its usage limits still apply.
+
+### Work an issue with Codex
+
+After trusting the Aiset hook in `/hooks`, run `aiset run 123` from a GitHub repository, or pass its issue URL.
+The installed, signed-in `gh` CLI is required, as for Claude. `--dry-run` previews without writing or invoking AI.
+Gate 1 confirms acceptance criteria. The native Codex session reads PM instructions, delegates, writes handoffs
+and finishes the board. Its native session id is saved for `--resume`. Gate 2 shows the diff and publication
+target; only your explicit confirmation lets the host commit, push and create the draft PR. `.claude/` and
+`.codex/` files are excluded from the runner's commits. A board cannot resume under the other provider.
+
+The runner verifies that the Aiset publishing hook is loaded, enabled and trusted before starting. It also
+requests a workspace-write sandbox with shell network access off and no escalation prompts for this session;
+it never changes global configuration or bypasses hook trust. The shared publishing policy handles native
+shell, patch and GitHub MCP calls. This is a tripwire, not a security boundary against arbitrary scripts or
+malicious agents (the existing Claude runner has the same script/library limits). Codex can continue after
+a hook timeout/error, unlike Claude's `onFailure: block`; Python guard errors return an explicit deny, but
+process-level failures cannot be made equivalent by a hook. Inspect the diff and commits at gate 2.
+Native trust requirements and runtime semantics therefore remain provider-specific. Desktop/IDE/Cloud
+equivalence and simultaneous mixed-provider teams are outside this preview.
+
+The product layer is shared: memory, boards, code indexing, Office/Brain views and publication gates consume
+the same data contracts. Native file generation, session decoding, hooks and launch options live behind
+provider adapters. A new shared product feature can serve both providers; a new native Claude capability
+still needs a corresponding Codex adapter and tests. See the [short Turkish quick start](CODEX-QUICKSTART.tr.md).
+
 ## Use the example team
 
 The bundled roster is a sample team with no repositories assigned. Set each engineer's `repos` list to your repository folder names, or run `init_team.py` for your workspace to generate a team from its repositories. The roster defines the office display; use `init_team.py` to create agent files.

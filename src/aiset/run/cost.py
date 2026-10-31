@@ -14,6 +14,10 @@ def cost_line(usage: Optional[dict]) -> str:
     tokens = (usage or {}).get("tokens") or {}
     if not tokens.get("total"):
         return "cost not available (no transcripts found for this task)"
+    if tokens.get("cost") is None:
+        return "cost not available (model or price unknown)"
+    if tokens.get("costBasis") == "configured-model-api-reference":
+        return f"API reference estimate ${tokens['cost']:.2f} (configured model; not subscription billing)"
     return f"${tokens.get('cost') or 0:.2f}"
 
 

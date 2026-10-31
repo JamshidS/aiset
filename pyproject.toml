@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "aiset-cli"
 version = "0.2.0"
-description = "Turn your repos into a team of Claude Code agents with persistent memory, coordinated tasks, and a live dashboard."
+description = "Turn your repos into a team of Claude Code or Codex agents with persistent memory, coordinated tasks, and a live dashboard."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Jamshid Sadik" }]
 requires-python = ">=3.9"
 dependencies = []
-keywords = ["claude-code", "ai-agents", "multi-agent", "developer-tools", "code-intelligence", "dashboard"]
+keywords = ["claude-code", "codex", "ai-agents", "multi-agent", "developer-tools", "code-intelligence", "dashboard"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",

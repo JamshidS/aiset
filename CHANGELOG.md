@@ -11,6 +11,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Codex CLI support (preview, #20): `aiset-init --provider codex`, project `AGENTS.md` guidance,
+  `.codex/agents/*.toml` roles, and a native PM session through `<team>-pm` or `aiset pm --workspace`.
+  Shared memory remains in `.claude/team/`. Reinitialization remembers the provider and preserves edited
+  Codex files using a generation manifest. Settings handles Codex model/reasoning preferences separately
+  from Claude models. Claude remains the default. PM chooses models for unpinned assignments. Native
+  session adapters feed Office/Brain activity, task routes and token usage with reference cost estimates.
+  Generated native hooks provide code-index hints and the shared publishing tripwire after user trust.
+  `aiset run` supports Codex start/resume with native ids and the same human-controlled publication gates;
+  its hook readiness check refuses missing or untrusted guards. Native hook timeout behavior still differs.
+
 - Architecture view: Go services. Web frameworks (Gin, Echo, Chi, Fiber, Gorilla Mux, Iris) and databases, Redis, RabbitMQ and Kafka clients are read from the direct requirements in `go.mod`, for any major version (#17).
 - `teammap outline <file>` prints indexed imports, symbol signatures, line ranges, sizes and routes; the long-read nudge points agents to it.
 - `AISET_CLAUDE_HOME` selects an alternate Claude Code data root for transcripts and, without a workspace, the team and agents folders.

@@ -29,7 +29,7 @@ if __name__ == "__main__" and not __package__:  # run as a file: python src/aise
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
     __package__ = "aiset"
 HERE = os.path.dirname(os.path.realpath(__file__))
-from . import registry  # noqa: E402
+from . import providers, registry  # noqa: E402
 from .atomic import write_text_atomic  # noqa: E402
 
 # every module reads its paths from workspace.py on import, so settle the workspace first:
@@ -90,6 +90,10 @@ def reload_roster(office, force=False):
                 or not m["name"]
             ):
                 raise ValueError("each member must be an object with non-empty string 'id' and 'name'")
+        if providers.name(roster) == "codex":
+            from .providers.codex import options
+            for member in roster["members"]:
+                options(member)
         safe_colors(roster)
     except (OSError, ValueError) as e:  # mid-edit, invalid JSON or bad shape: keep the last good roster
         print(f"roster.json not loaded: {e}")
@@ -160,6 +164,10 @@ class Handler(BaseHTTPRequestHandler):
                 brief_index.refresh()
                 state = self.office.state()
                 state["ui"] = settings.load()["ui"]
+                state["provider"] = providers.name(self.office.roster)
+                state["telemetrySupported"] = True
+                state["telemetry"] = {"source": "native-rollouts" if state["provider"] == "codex" else "claude-transcripts",
+                                      "fileReads": "command-analysis", "cost": "reference-or-unavailable"}
             return self._send(200, json.dumps(state).encode(), "application/json")
         if path == "/api/detail":
             from urllib.parse import parse_qs, urlparse
@@ -228,16 +236,23 @@ class Handler(BaseHTTPRequestHandler):
             roster = self.office.roster
             safe = lambda s: "".join(c for c in str(s) if c not in "\"'`<>\\")  # lands in JS strings and HTML
             html = html.replace("__PM_COMMAND__", safe(roster.get("pmCommand", "claude --agent pm"))).replace("__TEAM_NAME__", safe(roster.get("team", "AI Team")))
+            html = html.replace("__PROVIDER_LABEL__", "Codex" if providers.name(roster) == "codex" else "Claude")
+            if providers.name(roster) == "codex":
+                notice = ('<p role="status" style="margin:0;padding:12px 22px;background:#312e81;color:#fff;font:14px system-ui">'
+                          'Codex: activity and tokens come from native session logs. Shell file reads are inferred. '
+                          'Costs, when available, are reference estimates, not subscription charges.</p>')
+                html = html.replace("<body>", '<body data-provider="codex">' + notice)
             return self._send(200, html.encode("utf-8"), "text/html; charset=utf-8")
         return self._send(404, b"not found", "text/plain")
 
     def settings_payload(self):
         roster = self.office.roster
         return {
-            "settings": settings.load(), "roster": roster, "models": settings.MODELS,
+            "settings": settings.load(), "roster": roster, "models": settings.models(roster),
+            "provider": providers.name(roster),
             "agentFiles": settings.agent_files(roster),
             "fixed": {"hours": self.fixed_hours, "brainDays": self.fixed_days},
-            "paths": {"roster": workspace.norm(ROSTER), "agents": workspace.AGENTS, "settings": settings.PATH,
+            "paths": {"roster": workspace.norm(ROSTER), "agents": settings.agents_path(roster), "settings": settings.PATH,
                       "workspace": workspace.norm(workspace.WORKSPACE) if workspace.WORKSPACE else None},
         }
 

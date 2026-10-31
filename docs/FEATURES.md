@@ -6,6 +6,14 @@ Legend: ✅ works · 🟡 partial / limited · ❌ missing
 
 ## 1. Team and workflow
 
+Codex CLI preview: `aiset-init --provider codex` generates native custom TOML agents, project guidance and
+an `aiset pm` launcher, with existing shared memory and edit-preserving reinitialization. Claude remains
+the default. Settings separates Codex model/reasoning preferences from Claude models. Native names use an
+`aiset_` prefix while roster ids remain unchanged. Codex also has native Office/Brain activity, task routes,
+token tracking, labeled API reference costs, code-index hints and the shared `aiset run` issue/PR workflow.
+Unpinned assignment models are chosen by the PM. See the [setup guide](USER-GUIDE.md#codex-cli-preview)
+for one-time hook trust, the tested CLI, cost coverage and differences in hook failure behavior.
+
 | Feature | Status | Summary |
 |---|---|---|
 | Tester | ✅ | Runs tests, lint and type-check in the changed repos, and writes tests when needed. `STATUS: pass/fail`. |
