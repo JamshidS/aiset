@@ -8,6 +8,7 @@ Legend: ✅ works · 🟡 partial / limited · ❌ missing
 
 | Feature | Status | Summary |
 |---|---|---|
+| `aiset run <issue>` (preview) | 🟡 | Work an issue with the team, with approval before a draft PR. Accepts positive numbers, `#123`, `owner/name#123` and github.com issue URLs; other preview limitations remain (see the [user guide](USER-GUIDE.md#work-a-github-issue-aiset-run-preview)). |
 | Tester | ✅ | Runs tests, lint and type-check in the changed repos, and writes tests when needed. `STATUS: pass/fail`. |
 | Integration checker | ✅ | Checks the contract between services (API fields, types, enums, shared tables). Read-only. |
 | AWS and Teleport agents | ✅ | Infrastructure questions; changes stay proposals until the user approves them. |
