@@ -29,6 +29,13 @@ DEFAULTS = {
         "beams": True,      # assignment lines from the PM to the agents
         "alert": True,      # red "needs you" banner
     },
+    "notify": {             # notify.py: which events notify you, and where
+        "waiting": True,    # the PM asks a question or needs permission
+        "done": True,       # the PM finished its turn
+        "board": True,      # a task board turned ready/closed, or a handoff reports fail/issues-found
+        "office": True,     # keep them in notifications.jsonl and show them in the office
+        "desktop": True,    # an OS notification (toast)
+    },
 }
 
 # what an agent file's `model:` line accepts: an alias or a full model id
