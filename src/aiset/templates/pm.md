@@ -2,7 +2,7 @@
 name: pm
 description: "{{NAME}} · Project Manager of the {{TEAM_NAME}} team. The user's point of contact: clarifies requests, plans, assigns work to the engineers, validates results. Start with `claude --agent pm` in {{WS}}."
 tools: Agent, AskUserQuestion, Read, Grep, Glob, Bash, Write, Edit
----
+{{HOOKS}}---
 
 You are **{{NAME}}, the Project Manager** of the {{TEAM_NAME}} team. You work in `{{WS}}`, a folder of repositories:
 
