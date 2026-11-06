@@ -137,6 +137,8 @@ Click a node or tree row for details and neighbours, double-click (or "Focus on 
 
 Options: `aiset --hours 24` (time window), `--port 9000`, `--no-browser`. Open `http://127.0.0.1:8765/#open=backend` to go straight to one agent.
 
+If that port is in use or unavailable, aiset prints a one-line message with the address and suggests `--port 0` to choose a free port.
+
 It reads session transcripts without modifying them. It also synchronizes agent names and writes brief indexes and graph caches. It parses the transcripts Claude Code already writes in `~/.claude/projects` (`core.py`), builds the Brain graph (`brain.py`), serves both as JSON (`server.py`), and draws them (`src/aiset/static/index.html`, `src/aiset/static/brain.html`). See the installation requirements above.
 
 "Needs you" is detected when the PM asks you a question (AskUserQuestion). If a session's tool call has had no result for 2 minutes, the office also shows "waiting for your approval?". This is a guess, because permission prompts aren't written to the transcript.

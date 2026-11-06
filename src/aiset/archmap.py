@@ -253,7 +253,7 @@ def _deps(repo_path, files):
                     py.setdefault(re.sub(r"\[.*\]", "", m.group(1)).lower().replace("_", "-"), (rel, i, line.strip()))
         elif f in ("pyproject.toml", "environment.yml", "Pipfile"):
             for i, line in enumerate(_read(path).splitlines(), 1):
-                for m in re.finditer(r"(?:^|[\"'\s-])([A-Za-z][A-Za-z0-9_.\-]+)\s*(?:[<>=~^!]=?|\s*=\s*[\"'{]|[\"'])", line):
+                for m in re.finditer(r"(?:^|[\"'\s-])([A-Za-z][A-Za-z0-9_.\-]+)(?:\[[^\]]*\])?\s*(?:[<>=~^!]=?|\s*=\s*[\"'{]|[\"'])", line):
                     name = m.group(1).lower().replace("_", "-")
                     if len(name) > 1 and name not in ("python", "name", "version", "description", "readme", "license", "requires"):
                         py.setdefault(name, (rel, i, line.strip()))
@@ -929,6 +929,12 @@ def main(argv):
             print(" → ".join([hops[0]["from"]] + [_name(data, h["to"]) for h in hops]) if hops else ends[0])
             for h in hops:
                 print(f"  {h['from']} → {_name(data, h['to'])} · {h['label']} ({h['confidence']}){_where(h)}")
+    elif rest[:1] == ["impact"]:
+        print("usage: teammap arch impact <service>")
+        return 2
+    elif rest[:1] == ["path"]:
+        print("usage: teammap arch path <from> <to>")
+        return 2
     elif as_json:
         if rest:
             kind, item = resolve(data, rest[0])
