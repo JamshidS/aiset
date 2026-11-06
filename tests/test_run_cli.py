@@ -278,6 +278,30 @@ class RunFlowTest(TestCase):
         self.assertEqual(code, 1)
         self.assertIn("not an issue number", err)
 
+    def test_reference_forms_dry_run(self):
+        for ref in ("#123", "o/r#123", "www.github.com/o/r/issues/123/?tab=x#issuecomment-1"):
+            with self.subTest(ref=ref):
+                fetch.issue.reset_mock()
+                code, _, err = self.run_cli([ref, "--dry-run"])
+                self.assertEqual(code, 0, err)
+                fetch.issue.assert_called_once_with("o/r", 123, comments=False)
+                self.assertFalse(os.path.exists(self.boards))
+                self.assertEqual(self.claude_calls, [])
+                self.assertEqual(git(self.ws, "branch", "--show-current").strip(), "master")
+
+    def test_reference_error_messages(self):
+        for ref, message in (("https://github.com/o/r/pull/45", "#45 is a pull request, not an issue"),
+                             ("https://gitlab.com/o/r/issues/1", "only github.com issues are supported")):
+            with self.subTest(ref=ref):
+                fetch.issue.reset_mock()
+                code, _, err = self.run_cli([ref])
+                self.assertEqual(code, 1)
+                self.assertEqual(err.strip(), "aiset run: " + message)
+                fetch.issue.assert_not_called()
+                self.assertFalse(os.path.exists(self.boards))
+                self.assertEqual(self.claude_calls, [])
+                self.assertEqual(git(self.ws, "branch", "--show-current").strip(), "master")
+
     # --- gate 2 trusts neither the session nor run.json (integration check F1, F2, F10) ---
 
     def commit_in_session(self, paths, message):

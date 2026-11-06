@@ -19,6 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- `aiset run` accepts `#123`, `owner/name#123` and github.com issue URLs with optional HTTPS scheme, `www.`, trailing slash, query parameters and fragments; explicit repositories override the default (#119).
 - `teammap arch path` and `teammap arch impact` print usage and exit with status 2 when required arguments are missing.
 - The `aiset` command is now `aiset.cli:main`: `aiset run …` goes to the new command and everything else starts the office as before. Reinstall (`pip install -e .` or `pipx reinstall aiset-cli`) to pick up the new entry point.
 - Agent templates: the PM writes acceptance criteria as `AC-1`, `AC-2`, … (#58); engineers and QA report one `AC-n:` line per criterion and label claims `[V]` verified, `[S]` assumed, `[?]` open (#61). The PM has a short section on working an issue for `aiset run`.

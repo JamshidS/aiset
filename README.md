@@ -147,7 +147,7 @@ Services, databases and the calls between them, each backed by a file and line. 
 | `aiset-init <folder> [--team NAME]` | Detect stacks, generate the roster, agents and brief stubs in `<folder>/.claude/`. Safe to re-run: keeps your names, adds new repos. |
 | `<team>-pm` | Start the PM in its workspace from anywhere. The office footer suggests this command when its launcher is on `PATH`. Extra arguments go to Claude Code, e.g. `shop-pm --model sonnet`. |
 | `aiset [--workspace FOLDER\|TEAM]` | Open the office. Without `--workspace`: the workspace you're in, else the team you set up most recently. |
-| `aiset run <issue>` (preview) | Work a GitHub issue with the team; opens a **draft** PR only after you approve at gate 2. `aiset run --help` for options; `python -m aiset.run <issue>` does the same if an older `aiset` on `PATH` opens the office instead. See the [user guide](docs/USER-GUIDE.md#work-a-github-issue-aiset-run-preview). |
+| `aiset run <issue>` (preview) | Accepts `123`, `#123`, `owner/name#123` or a github.com issue URL. Work a GitHub issue with the team; opens a **draft** PR only after you approve at gate 2. `aiset run --help` for options; `python -m aiset.run <issue>` does the same if an older `aiset` on `PATH` opens the office instead. See the [user guide](docs/USER-GUIDE.md#work-a-github-issue-aiset-run-preview). |
 | `teammap relevant "<task>"` | Files, symbols, endpoints, brief sections and past episodes to read first. |
 | `teammap impact <path\|symbol\|Model> [METHOD]` | What a change can reach: consumers, models, importers, tests. Exact vs inferred. |
 | `teammap failures <log>` | Failed tests, messages and in-repo frames from a saved test run, grouped. |

@@ -80,10 +80,16 @@ Tell the PM what you need. The PM clarifies the request with you, writes accepta
 
 ```sh
 aiset run 123 --dry-run      # show the issue, the acceptance criteria, the branch and the claude command; change nothing
-aiset run 123                # or the issue URL; --repo OWNER/NAME when the workspace has several repos
+aiset run 123                # --repo OWNER/NAME when the workspace has several repos
+aiset run "#123"             # quote the hash form for your shell
+aiset run "owner/name#123"   # explicit repository overrides --repo or the workspace default
+aiset run "https://github.com/owner/name/issues/123?tab=comments#issuecomment-456"
+aiset run github.com/owner/name/issues/123/
 aiset run 123 --resume       # continue the last session on the issue's board
 aiset run 123 --publish      # go straight to the approval step for an existing board
 ```
+
+Issue numbers must be positive. `123` and `#123` use `--repo OWNER/NAME` or the workspace repository; `owner/name#123` and URLs name their own repository. URLs accept HTTPS or no scheme, optional `www.`, a trailing slash, query parameters and fragments. Only `github.com` issue URLs are supported; pull request URLs are rejected.
 
 The gate's fail-closed timeout (`onFailure: "block"`) needs a recent Claude Code (2.1.312 tested); older versions ignore it.
 
@@ -96,7 +102,7 @@ If `aiset run` opens the office instead (an older `aiset` earlier on `PATH`), `p
 
 The issue is text written by outsiders. Agents get it only as `issue.md`, marked as data, never in their prompt. The session can't push or write to GitHub: deny rules and a hook (`src/aiset/run/gate.py`, passed with `--settings` for this session only, subagents included) block `git push` (and its aliases and wrappers), `gh issue`, `gh pr` writes, `gh api` writes, and edits inside `.git/` (hooks, config). It is a tripwire, not a sandbox: what it can't catch is listed in `gate.py`, and gate 2 checks the result anyway. Text from the issue and the agents is defused in the PR description, so `@mentions` don't ping and `fixes #9` closes nothing.
 
-This is a first version. Several parts are deliberately simple stubs that contributors are replacing: today the criteria are read only from `- [ ]` task lists, hidden characters in the issue (zero-width, HTML comments) are not yet flagged at gate 1, the snapshot has no size limits, the PR's cost line shows only dollars, and `#123`/`owner/name#123` forms aren't accepted yet (use the number or the URL). Not in this version: headless or CI runs, a budget limit, changes across several repos, worktrees, GitHub Enterprise hosts.
+This is a first version. Several parts are deliberately simple stubs that contributors are replacing: today the criteria are read only from `- [ ]` task lists, hidden characters in the issue (zero-width, HTML comments) are not yet flagged at gate 1, the snapshot has no size limits, and the PR's cost line shows only dollars. Not in this version: headless or CI runs, a budget limit, changes across several repos, worktrees, GitHub Enterprise hosts.
 
 ## The office
 
