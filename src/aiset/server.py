@@ -14,6 +14,7 @@ Settings (/settings) edits the roster (names, roles, colours, duties, models) an
 own options (<team>/settings.json); --hours and --brain-days override the stored windows.
 """
 import argparse
+import errno
 import json
 import math
 import os
@@ -324,7 +325,17 @@ def main():
     Handler.office = Office(roster, args.hours if Handler.fixed_hours else stored["hours"])
     Handler.brain_office = Office(roster, (args.brain_days if Handler.fixed_days else stored["brainDays"]) * 24)
     Handler.office.history = Handler.brain_office
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    except OSError as e:
+        if e.errno == errno.EADDRINUSE or isinstance(e, PermissionError):
+            detail = " (port in use or unavailable; another aiset office may be running)"
+        else:
+            detail = f": {e.strerror or e}"
+        sys.exit(
+            f"aiset: can't listen on 127.0.0.1:{args.port}{detail}. "
+            f"Open http://127.0.0.1:{args.port}, or start with --port 0 for a free port."
+        )
     Handler.port = server.server_address[1]  # the real port, also when --port 0 picked one
     url = f"http://127.0.0.1:{Handler.port}"
     print(f"🏢 {roster.get('team', 'Agent')} office running at {url}  (Ctrl+C to stop)")

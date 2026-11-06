@@ -929,6 +929,12 @@ def main(argv):
             print(" → ".join([hops[0]["from"]] + [_name(data, h["to"]) for h in hops]) if hops else ends[0])
             for h in hops:
                 print(f"  {h['from']} → {_name(data, h['to'])} · {h['label']} ({h['confidence']}){_where(h)}")
+    elif rest[:1] == ["impact"]:
+        print("usage: teammap arch impact <service>")
+        return 2
+    elif rest[:1] == ["path"]:
+        print("usage: teammap arch path <from> <to>")
+        return 2
     elif as_json:
         if rest:
             kind, item = resolve(data, rest[0])
