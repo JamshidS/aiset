@@ -642,7 +642,7 @@ def parse_pytest(lines):
         cur["end"] = len(lines)
     by_name = {f["test"].split("::")[-1]: f for f in fails}
     for i, ln in enumerate(lines):  # short summary: fills message and file, or is all there is (--tb=no)
-        m = re.match(r"^(FAILED|ERROR) (\S+?)(?:::(\S+))?(?: - (.*))?$", ln)
+        m = re.match(r"^(FAILED|ERROR) (\S+?)(?:::([^\s\[]+(?:\[.*?\])?))?(?: - (.*))?$", ln)
         if not m:
             continue
         name = (m.group(3) or m.group(2)).split("::")[-1]
@@ -681,7 +681,8 @@ def parse_unittest(lines):
         # the exception line is the last unindented one; earlier ones belong to chained exceptions
         tail = [b for b in block if b.strip() and not b.startswith((" ", "Traceback", "During handling", "The above exception"))]
         etype, msg = _message(list(reversed(tail)))
-        out.append({"test": f"{m.group(3)}", "kind": "failed" if m.group(1) == "FAIL" else "error", "file": None,
+        name = m.group(3) if m.group(3).endswith("." + m.group(2)) else f"{m.group(3)}.{m.group(2)}"
+        out.append({"test": name, "kind": "failed" if m.group(1) == "FAIL" else "error", "file": None,
                     "type": etype, "message": msg, "frames": _frames(block), "log_lines": [i + 1, j]})
     return out
 

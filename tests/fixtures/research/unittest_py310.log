@@ -1,0 +1,57 @@
+EEE.FF
+======================================================================
+ERROR: test_missing_price (app.tests.test_billing.BillingTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "{ROOT}\app\tests\test_billing.py", line 13, in test_missing_price
+    total([{"qty": 1}])
+  File "{ROOT}\app\billing.py", line 2, in total
+    return sum(i["qty"] * i["price"] for i in items)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "{ROOT}\app\billing.py", line 2, in <genexpr>
+    return sum(i["qty"] * i["price"] for i in items)
+                          ~^^^^^^^^^
+KeyError: 'price'
+
+======================================================================
+ERROR: test_parse_bad (app.tests.test_billing.BillingTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "{ROOT}\app\tests\test_billing.py", line 19, in test_parse_bad
+    parse_qty("four")
+  File "{ROOT}\app\billing.py", line 6, in parse_qty
+    return int(s)
+           ^^^^^^
+ValueError: invalid literal for int() with base 10: 'four'
+
+======================================================================
+ERROR: test_parse_bad2 (app.tests.test_billing.BillingTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "{ROOT}\app\tests\test_billing.py", line 22, in test_parse_bad2
+    parse_qty("five")
+  File "{ROOT}\app\billing.py", line 6, in parse_qty
+    return int(s)
+           ^^^^^^
+ValueError: invalid literal for int() with base 10: 'five'
+
+======================================================================
+FAIL: test_total_one (app.tests.test_billing.BillingTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "{ROOT}\app\tests\test_billing.py", line 7, in test_total_one
+    self.assertEqual(total([{"qty": 2, "price": 3}]), 7)
+AssertionError: 6 != 7
+
+======================================================================
+FAIL: test_total_two (app.tests.test_billing.BillingTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "{ROOT}\app\tests\test_billing.py", line 10, in test_total_two
+    self.assertEqual(total([{"qty": 1, "price": 5}]), 6)
+AssertionError: 5 != 6
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.001s
+
+FAILED (failures=2, errors=3)
