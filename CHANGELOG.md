@@ -27,6 +27,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - Research tools: `teammap failures` detects parametrized pytest IDs containing spaces and hyphens in the short summary (#122).
+- Research tools: `teammap failures` builds the full `module.Class.method` test name from Python 3.9/3.10 unittest output (#123).
 - Architecture view: pyproject dependencies with extras (e.g. `fastapi[standard]`) are recognized and mapped to their framework and kind (#126).
 
 ## [0.2.0] - 2026-10-28
