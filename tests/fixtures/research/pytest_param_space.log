@@ -1,0 +1,5 @@
+FF                                                                          [100%]
+=========================== short test summary info ===========================
+FAILED test_p.py::test_split[a b] - AssertionError: assert ' ' not in 'a b'
+FAILED test_p.py::test_z[a - b] - AssertionError: assert ' ' not in 'a - b'
+2 failed in 0.01s
