@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aiset-cli"
-version = "0.2.0"
+version = "0.3.0"
 description = "Turn your repos into a team of Claude Code agents with persistent memory, coordinated tasks, and a live dashboard."
 readme = "README.md"
 license = "MIT"

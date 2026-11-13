@@ -91,7 +91,7 @@ aiset run 123 --publish      # go straight to the approval step for an existing 
 
 Issue numbers must be positive. `123` and `#123` use `--repo OWNER/NAME` or the workspace repository; `owner/name#123` and URLs name their own repository. URLs accept HTTPS or no scheme, optional `www.`, a trailing slash, query parameters and fragments. Only `github.com` issue URLs are supported; pull request URLs are rejected.
 
-The gate's fail-closed timeout (`onFailure: "block"`) needs a recent Claude Code (2.1.312 tested); older versions ignore it.
+The gate hook is registered with `"onFailure": "block"`, so a hook that crashes or times out blocks the tool call instead of letting it through. This was checked with Claude Code 2.1.312; no minimum version has been determined, and an older Claude Code may ignore the setting and let the call through when the hook fails. `aiset run` doesn't check the version.
 
 If `aiset run` opens the office instead (an older `aiset` earlier on `PATH`), `python -m aiset.run 123` runs the same command.
 
@@ -101,6 +101,12 @@ If `aiset run` opens the office instead (an older `aiset` earlier on `PATH`), `p
 4. **Gate 2:** you see every URL `origin` really pushes to (each must be the issue's repo on github.com), the base branch, the commits the session made since gate 1, the files and diffstat since gate 1, any earlier commits the push would also send (marked, with a separate question, when they touch `.claude/` or carry an AI trailer), a loud flag on new or changed files under `.github/`, and `pr.md`, the PR description with the criteria, the tester's checks, the open assumptions and the cost. Commits from the session that touch `.claude/` or carry an AI trailer (`Co-Authored-By` ...) are refused; other session commits need their own `y`. If git config that can redirect a push or run code (remotes, `url.*.insteadOf`, aliases, `core.hooksPath`, filters ...) or a hook changed since gate 1, you get a loud warning and a separate question. `d` shows the diff, new files included. Only on `y` does `aiset run` commit (no AI trailer), push the branch and run `gh pr create --draft`, with git hooks turned off for its own commit and push. On `N` nothing is committed or pushed; publish later with `--publish`.
 
 The issue is text written by outsiders. Agents get it only as `issue.md`, marked as data, never in their prompt. The session can't push or write to GitHub: deny rules and a hook (`src/aiset/run/gate.py`, passed with `--settings` for this session only, subagents included) block `git push` (and its aliases and wrappers), `gh issue`, `gh pr` writes, `gh api` writes, and edits inside `.git/` (hooks, config). It is a tripwire, not a sandbox: what it can't catch is listed in `gate.py`, and gate 2 checks the result anyway. Text from the issue and the agents is defused in the PR description, so `@mentions` don't ping and `fixes #9` closes nothing.
+
+Known limits of the tripwire (accepted because gate 2 shows you the commits, config and hook changes and the push URL, and runs its own git with hooks off):
+
+- `cd X && git <alias>`: alias lookups run in the hook's own folder and with `git -C`, so an alias defined in another repo, or set through `--git-dir`, `GIT_DIR` or `GIT_CONFIG_*`, is looked up in the wrong config.
+- The git config and hook snapshot in `run.json` sits on the board, so an agent can recompute it after changing config or hooks, and gate 2 won't see the change.
+- The "already committed by aiset run" check can be forged: an agent can make a commit with gate 2's own message and put its sha in `run.json`. Such a commit is still checked for `.claude/` files and AI trailers.
 
 This is a first version. Several parts are deliberately simple stubs that contributors are replacing: today the criteria are read only from `- [ ]` task lists, hidden characters in the issue (zero-width, HTML comments) are not yet flagged at gate 1, the snapshot has no size limits, and the PR's cost line shows only dollars. Not in this version: headless or CI runs, a budget limit, changes across several repos, worktrees, GitHub Enterprise hosts.
 

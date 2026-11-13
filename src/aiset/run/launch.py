@@ -18,7 +18,8 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 PROMPT_FILE = os.path.join(os.path.dirname(HERE), "templates", "run_prompt.md")
 DENY = ("Bash(git push:*)", "Bash(gh pr:*)", "Bash(gh issue:*)", "Bash(gh api:*)", "Bash(gh release:*)")
 # The gate hook's own limit (seconds; its alias lookups stop after gate.LOOKUP_DEADLINE) and onFailure "block":
-# a hook that times out or fails blocks the tool call instead of letting it through (checked with claude 2.1.312).
+# a hook that times out or fails blocks the tool call instead of letting it through (checked with claude 2.1.312;
+# no minimum version known, an older claude may ignore onFailure, see docs/USER-GUIDE.md).
 HOOK_TIMEOUT = 30
 CMD_UNSAFE = re.compile(r'[\r\n"%^&|<>!]')
 PATH_UNSAFE = re.compile(r'[\r\n"%^&|<>!,;=]')

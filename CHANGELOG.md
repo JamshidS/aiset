@@ -5,9 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-13
+
 ### Fixed
 
 - Starting the office on a busy or unavailable port now prints a concise message with a `--port 0` hint instead of a traceback (#125).
+- Research tools: `teammap failures` detects parametrized pytest IDs containing spaces and hyphens in the short summary (#122).
+- Research tools: `teammap failures` builds the full `module.Class.method` test name from Python 3.9/3.10 unittest output (#123).
+- Architecture view: pyproject dependencies with extras (e.g. `fastapi[standard]`) are recognized and mapped to their framework and kind (#126).
 
 ### Added
 
@@ -19,17 +24,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- Agent templates: the PM triages QA and integration-check findings against the task's scope (in scope, another owner, later, changes the scope), logs one line per finding, keeps `## Out of scope` and `## Follow-ups` in `brief.md`, asks you when work crosses the split, and stops after two verify rounds; engineers mark deviations that cross scope (#110).
+- User guide: the `aiset run` section states the Claude Code version `onFailure: "block"` was checked with (2.1.312) and lists the known limits of the tripwire (#121).
 - `aiset run` accepts `#123`, `owner/name#123` and github.com issue URLs with optional HTTPS scheme, `www.`, trailing slash, query parameters and fragments; explicit repositories override the default (#119).
-- `teammap arch path` and `teammap arch impact` print usage and exit with status 2 when required arguments are missing.
+- `teammap arch path` and `teammap arch impact` print usage and exit with status 2 when required arguments are missing (#124).
 - The `aiset` command is now `aiset.cli:main`: `aiset run …` goes to the new command and everything else starts the office as before. Reinstall (`pip install -e .` or `pipx reinstall aiset-cli`) to pick up the new entry point.
 - Agent templates: the PM writes acceptance criteria as `AC-1`, `AC-2`, … (#58); engineers and QA report one `AC-n:` line per criterion and label claims `[V]` verified, `[S]` assumed, `[?]` open (#61). The PM has a short section on working an issue for `aiset run`.
 - The tester and engineer templates use `teammap run`, and the nudge hook recommends it when a known test runner is piped into `tail` or `head`.
-
-### Fixed
-
-- Research tools: `teammap failures` detects parametrized pytest IDs containing spaces and hyphens in the short summary (#122).
-- Research tools: `teammap failures` builds the full `module.Class.method` test name from Python 3.9/3.10 unittest output (#123).
-- Architecture view: pyproject dependencies with extras (e.g. `fastapi[standard]`) are recognized and mapped to their framework and kind (#126).
 
 ## [0.2.0] - 2026-10-28
 
@@ -82,6 +83,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Research evaluation scripts in `eval/`.
 - CI on Linux, Windows and macOS for Python 3.9 to 3.13, lint, package build checks and CodeQL.
 
-[Unreleased]: https://github.com/JamshidS/aiset/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/JamshidS/aiset/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/JamshidS/aiset/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/JamshidS/aiset/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/JamshidS/aiset/releases/tag/v0.1.0
