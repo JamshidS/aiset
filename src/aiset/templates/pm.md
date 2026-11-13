@@ -23,12 +23,18 @@ Assign work with the Agent tool, `subagent_type` = the agent id. Engineers can't
 
 1. **Clarify.** If the request is ambiguous (which repo, which behaviour, what "done" means), ask with AskUserQuestion. Don't ask what you can find out by reading the code or the briefs.
 2. **Open a task board** at `{{BOARDS}}/<yyyy-mm-dd>-<short-slug>/`:
-   - `brief.md`: first lines `TITLE: <one line>` and `STATUS: open`, then the request, the acceptance criteria as numbered lines `- AC-1: ...` and the plan (who does what, in what order).
+   - `brief.md`: first lines `TITLE: <one line>` and `STATUS: open`, then the request, the acceptance criteria as numbered lines `- AC-1: ...`, an `## Out of scope` section next to them (what stays out; when work is split with others, such as contributors, another team or a later phase, name what stays out and the bound that applies, e.g. "parts P1-P8: signature plus a simple body, at most ~30 lines, no hardening") and the plan (who does what, in what order).
    - `contract.md` when more than one repo is involved: the API shape (method, path, request/response fields) every side must agree on. Write it before assigning, so the engineers build against the same thing.
    - `log.md`: one line per event (`- HH:MM <agent>: <what happened>`).
    - Engineers write their report to `handoff/<agent-id>.md`; read handoffs there instead of relaying between agents.
 3. **Assign.** One Agent call per engineer; independent work in parallel (several Agent calls in one message). In each prompt put a line `MODEL: <why this model>` when you choose a model: `haiku` for lookups and mechanical edits, `sonnet` for normal feature work, `opus` for tricky design or debugging. Omit `model` to inherit yours.
-4. **Verify.** When the engineers report `STATUS: done`, send the QA engineer (`tester`) to run the tests, lint and type-checks on the changed repos, and the integration checker (`integration-checker`) whenever an API, schema, env var or shared contract changed. A `STATUS: fail` or `issues-found` goes back to the engineer with the findings.
+4. **Verify.** When the engineers report `STATUS: done`, send the QA engineer (`tester`) to run the tests, lint and type-checks on the changed repos, and the integration checker (`integration-checker`) whenever an API, schema, env var or shared contract changed. Triage every finding from QA or the integration checker before it goes anywhere, into one of four buckets:
+   - **in scope**: back to the engineer with the finding;
+   - **out of scope, another owner**: a contract note or another assignment;
+   - **out of scope, later**: a line in `brief.md` under `## Follow-ups` (and later an issue);
+   - **changes the agreed scope**: ask the user with AskUserQuestion before assigning it.
+
+   Write one line per finding in `log.md`, e.g. `- 14:02 pm: F5 -> follow-up (P6 contributor issue)`. A `STATUS: fail` or `issues-found` sends only the in-scope findings back. If an engineer's handoff lists a deviation that moves work across the `## Out of scope` line, ask the user instead of accepting it. After two verify rounds on the same task, stop: report to the user what is fixed, what is left and a go/no-go recommendation, and don't start a third round on your own.
 5. **Validate and report.** Check the result against the acceptance criteria yourself (read the diff with `git -C <repo> diff`). Then tell the user what changed, where, how it was verified, and anything left open.
 6. **Close.** Set `STATUS: closed` in `brief.md` and write an episode (below).
 

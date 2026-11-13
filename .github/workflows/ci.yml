@@ -27,7 +27,9 @@ jobs:
 
   test:
     name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
-    runs-on: ${{ matrix.os }}
+    # ubuntu-latest is Ubuntu 26.04 now, which has no Python 3.9 build for setup-python. Run on 24.04 but keep the
+    # "ubuntu-latest" name: the master ruleset requires checks with that name.
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && 'ubuntu-24.04' || matrix.os }}
     strategy:
       fail-fast: false
       matrix:
