@@ -364,6 +364,18 @@ def nudge_hook(ws):
             f"          command: {quoted}\n          timeout: 10\n")
 
 
+def notify_hooks(ws):
+    """Frontmatter for the PM's Notification (waits for you) and Stop (finished) hooks (notify.py)."""
+    team_dir = fwd(os.path.join(os.path.abspath(ws), ".claude", "team"))
+    out = "hooks:\n"
+    for event, kind in (("Notification", "waiting"), ("Stop", "done")):
+        cmd = script_command("notify") + f' hook "{team_dir}" {kind}'
+        quoted = "'" + cmd.replace("'", "''") + "'"
+        out += (f"  {event}:\n    - hooks:\n        - type: command\n"
+                f"          command: {quoted}\n          timeout: 10\n")
+    return out
+
+
 def write_agents(ws, roster, repos, force):
     from .sync_names import set_model, set_pinned
     team_dir = fwd(os.path.join(os.path.abspath(ws), ".claude", "team"))
@@ -396,6 +408,8 @@ def write_agents(ws, roster, repos, force):
         values = {**base, "ID": m["id"], "NAME": m["name"], "ROLE": m["role"], "DUTY": m.get("duty", ""),
                   "REPOS": ", ".join(m.get("repos") or []) or "-",
                   "STACK": ", ".join(r["stack"] for r in own) or m.get("stack", ""),
+                  "HOOKS": notify_hooks(ws) if m["id"] == "pm" and roster.get("notify", True) else
+                           ("" if m["id"] == "pm" else base["HOOKS"]),
                   "TEST_HINTS": f" Here: {', '.join(f'`{c}`' for c in checks)}." if checks else ""}
         if own:
             values["REPO_LIST"] = "\n".join(f"- `{r['name']}` at `{base['WS']}/{r['name']}` ({r['stack']})" for r in own)
