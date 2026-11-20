@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- The `aiset run` draft PR preview and body show estimated API cost, task tokens, total runs and a breakdown by agent (#117).
+
 ## [0.3.1] - 2026-11-20
 
 ### Changed
