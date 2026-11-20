@@ -124,7 +124,7 @@ def render_pr_body(pr: PrInput) -> str:
         parts += [f"- [{c.label}] {neutralize(c.text)}" for c in pr.open_claims]
     counts = pr.claim_counts
     parts += ["", f"Claims: {counts.get('V', 0)} verified · {counts.get('S', 0)} assumed · {counts.get('?', 0)} open",
-              "", "## Cost", pr.cost, "",
+              "", "## Cost", neutralize(pr.cost), "",
               f"<sub>Board `{pr.board}` · branch `{pr.branch}`</sub>"]
     body = "\n".join(parts)
     room = MAX_CHARS - len(closes) - 2

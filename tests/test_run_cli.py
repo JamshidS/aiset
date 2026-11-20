@@ -171,6 +171,12 @@ class RunFlowTest(TestCase):
         self.assertFalse(os.path.exists(self.boards))
 
     def test_full_run_publishes_after_gate2(self):
+        tokens = {"total": 1930000, "cost": 4.12}
+        publish._usage.return_value = {
+            "tokens": tokens,
+            "agents": [{"agent": "@cost-reviewer", "runs": 1, "tokens": tokens}],
+            "runs": [{"agent": "@cost-reviewer", "tokens": tokens}],
+        }
         code, out, err = self.run_cli(["123"], answers=["y", "y"])
         self.assertEqual(code, 0, err)
         bdir = self.only_board()
@@ -202,6 +208,8 @@ class RunFlowTest(TestCase):
         self.assertTrue(body.startswith("Closes #123"))
         self.assertIn("`@maintainer`", body)
         self.assertNotIn("fixes #9", body)
+        self.assertIn("\n## Cost\n$4.12 · 1.93M tokens · 1 run: `@cost-reviewer` (estimated at API list prices)\n",
+                      body)
         run = board.read_run(bdir)
         self.assertEqual((run["phase"], run["pr"], run["pushed"]), ("published", "https://github.com/o/r/pull/7", True))
         self.assertIn("gate 2 approved", board.read_text(bdir, "log.md"))
