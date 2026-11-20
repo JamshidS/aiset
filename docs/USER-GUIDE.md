@@ -108,7 +108,9 @@ Known limits of the tripwire (accepted because gate 2 shows you the commits, con
 - The git config and hook snapshot in `run.json` sits on the board, so an agent can recompute it after changing config or hooks, and gate 2 won't see the change.
 - The "already committed by aiset run" check can be forged: an agent can make a commit with gate 2's own message and put its sha in `run.json`. Such a commit is still checked for `.claude/` files and AI trailers.
 
-This is a first version. Several parts are deliberately simple stubs that contributors are replacing: today the criteria are read only from `- [ ]` task lists, hidden characters in the issue (zero-width, HTML comments) are not yet flagged at gate 1, the snapshot has no size limits, and the PR's cost line shows only dollars. Not in this version: headless or CI runs, a budget limit, changes across several repos, worktrees, GitHub Enterprise hosts.
+This is a first version. Gate 1 warns about hidden characters in the issue (zero-width, bidi and other invisible characters, shown as `<U+XXXX>`) and about HTML comments.
+
+Several parts are deliberately simple stubs that contributors are replacing: today the criteria are read only from `- [ ]` task lists, the snapshot has no size limits, and the PR's cost line shows only dollars. Not in this version: headless or CI runs, a budget limit, changes across several repos, worktrees, GitHub Enterprise hosts.
 
 ## The office
 

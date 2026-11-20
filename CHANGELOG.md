@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-20
+
+### Changed
+
+- `aiset run` reveals hidden characters in the issue text as `<U+XXXX>` (zero-width, bidi, tag and other control or format characters), counts HTML comments, and gate 1 warns about them (#112, #136).
+
 ## [0.3.0] - 2026-11-13
 
 ### Fixed
