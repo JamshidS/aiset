@@ -141,6 +141,7 @@ label.f { display: flex; flex-direction: column; gap: 5px; font-size: 11px; colo
     <a href="#agents" class="on">Agents &amp; models</a>
     <a href="#team">Team</a>
     <a href="#layout">Office layout</a>
+    <a href="#notify">Notifications</a>
     <a href="#windows">Time windows</a>
     <a href="#files">Files</a>
   </nav>
@@ -175,6 +176,13 @@ label.f { display: flex; flex-direction: column; gap: 5px; font-size: 11px; colo
       <div class="group"><h3>Rooms on the floor</h3><div class="rows" id="g-rooms"></div></div>
       <div class="group"><h3>Pages in the top bar</h3><div class="rows" id="g-pages"></div></div>
       <div class="group"><h3>Display</h3><div class="rows" id="g-display"></div></div>
+    </section>
+
+    <section class="card" id="notify">
+      <h2>Notifications</h2>
+      <p class="sub">Which events tell you something, and where. The project name is in every message. Hooks are written into the PM agent file by <code>aiset-init</code>; the switches are read each time, so changes apply right away.</p>
+      <div class="group"><h3>Events</h3><div class="rows" id="g-notify"></div></div>
+      <div class="group"><h3>Where</h3><div class="rows" id="g-notify-where"></div></div>
     </section>
 
     <section class="card" id="windows">
@@ -324,6 +332,8 @@ const TABS = [["board", "Task board", "assignments by column: clarify, in progre
 const ROOMS = [["lounge", "Claude sessions", "lead sessions you're chatting with"], ["qa", "Quality", "tester and integration checker"], ["infra", "Infrastructure", "cloud and access agents"], ["bench", "Contractors", "built-in helper agents (Explore, Plan…)"]];
 const PAGES = [["brain", "Brain", "graph of what the team knows and touched"], ["architecture", "Architecture", "system map of the repositories"]];
 const DISPLAY = [["stats", "Token and cost totals", "the pills in the office's top bar"], ["beams", "Assignment lines", "lines from the PM to the agents it's waiting on"], ["alert", "\"Needs you\" banner", "the red bar when the PM asks you something"], ["hint", "\"Talk to your PM\" hint", "the line under the side panel"]];
+const NOTIFY = [["waiting", "PM is waiting for you", "a question, or a permission prompt"], ["done", "PM finished", "the PM ended its turn"], ["board", "Task board changed", "a brief turns ready or closed, or a handoff reports fail or issues-found"]];
+const NOTIFY_WHERE = [["office", "In the office", "the bell in the office's top bar lists recent notifications"], ["desktop", "Desktop notification", "a pop-up from the operating system (Windows toast, macOS, Linux notify-send)"]];
 const toggle = (path, label, note, on, disabled) => `<div class="row"><div class="t">${esc(label)}<small>${esc(note)}</small></div>
   <label class="sw-t"><input type="checkbox" data-path="${path}"${on ? " checked" : ""}${disabled ? " disabled" : ""} aria-label="${esc(label)}"><span></span></label></div>`;
 function renderLayout() {
@@ -336,6 +346,8 @@ function renderLayout() {
     + `<div class="row"><div class="t">Floor view<small>the drawing the office starts with</small></div><select data-path="ui.view"><option value="iso"${ui.view === "iso" ? " selected" : ""}>Isometric</option><option value="classic"${ui.view === "classic" ? " selected" : ""}>Classic cards</option></select></div>`;
   $("#g-pages").innerHTML = PAGES.map(([k, l, n]) => toggle("ui.pages." + k, l, n, ui.pages[k])).join("");
   $("#g-display").innerHTML = DISPLAY.map(([k, l, n]) => toggle("ui." + k, l, n, ui[k])).join("");
+  $("#g-notify").innerHTML = NOTIFY.map(([k, l, n]) => toggle("notify." + k, l, n, D.settings.notify[k])).join("");
+  $("#g-notify-where").innerHTML = NOTIFY_WHERE.map(([k, l, n]) => toggle("notify." + k, l, n, D.settings.notify[k])).join("");
   const num = (path, label, note, v, unit, min, max, step, fixed) => `<div class="row"><div class="t">${esc(label)}<small>${esc(fixed ? note + " · set by the command line for this run" : note)}</small></div>
     <input type="number" data-path="${path}" value="${v}" min="${min}" max="${max}" step="${step}"${fixed ? " disabled" : ""} aria-label="${esc(label)} in ${unit}"><span style="color:var(--muted);font-size:12.5px;width:36px">${unit}</span></div>`;
   $("#g-windows").innerHTML = num("hours", "Office window", "agents active within this many hours (--hours)", D.settings.hours, "hours", .25, 720, .25, D.fixed.hours)

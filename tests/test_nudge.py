@@ -159,7 +159,8 @@ class InitHookTest(unittest.TestCase):
             cmd = re.search(r"command: '(.*)'\n", front).group(1).replace("''", "'")
             self.assertIn("nudge.py", cmd)
             self.assertTrue(cmd.endswith(f' "{self.ws.replace(os.sep, "/")}"'), cmd)
-        self.assertNotIn("hooks:", files["pm"])
+        self.assertNotIn("nudge.py", files["pm"])  # the PM has the notify hooks instead
+        self.assertIn("notify.py", files["pm"])
 
     def test_no_nudge_is_remembered(self):
         self.init("--no-nudge")

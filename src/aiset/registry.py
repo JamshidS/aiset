@@ -95,12 +95,17 @@ def write_launcher(team, path, bin_dir):
         target = os.path.join(bin_dir, name + ".cmd")
         # cmd.exe runs claude.cmd here, so PowerShell's script execution policy doesn't apply;
         # setlocal gives the folder back to an interactive cmd.exe when the session ends
+        # the tab shows the team name: `title` sets it, and Claude Code is told not to overwrite it
+        shown = re.sub(r'[&|<>^"%\x00-\x1f]', "", team).strip() or "aiset"
         text = (f"@echo off\r\nrem {MARKER} for the {team} team's PM (made by aiset-init)\r\nsetlocal\r\n"
-                f'cd /d "{path.replace("%", "%%")}" || exit /b 1\r\nclaude --agent pm %*\r\n')
+                f'cd /d "{path.replace("%", "%%")}" || exit /b 1\r\n'
+                f"title {shown}\r\nset CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1\r\nclaude --agent pm %*\r\n")
     else:
         target = os.path.join(bin_dir, name)
         text = (f"#!/bin/sh\n# {MARKER} for the {team} team's PM (made by aiset-init)\n"
-                f"cd {shlex.quote(path)} || exit 1\nexec claude --agent pm \"$@\"\n")
+                f"cd {shlex.quote(path)} || exit 1\n"
+                f"printf '\\033]0;%s\\007' {shlex.quote(team)}\nexport CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1\n"
+                "exec claude --agent pm \"$@\"\n")
     if os.path.exists(target):
         try:
             with open(target, encoding="utf-8", errors="replace") as f:

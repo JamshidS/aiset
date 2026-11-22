@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """aiset: a live office view of your Claude Code agent team, in the browser.
 
-  aiset                        start on http://127.0.0.1:8765 and open the browser
-  aiset --port 9000            use another port
+  aiset                        start on http://127.0.0.1:8765 and open the browser; if 8765 is busy,
+                               the first free port from 8766 to 8784 (or any free port)
+  aiset --port 9000            use this port exactly (an error if it is busy)
+  aiset --list                 list the offices running now (team, workspace, URL) and exit
+                               if this workspace already has an office running, its URL is shown
+                               and opened instead of starting a second one
   aiset --hours 24             include agents active in the last 24 hours (default 12)
   aiset --no-browser           don't open a browser tab
   aiset --brain-days 60        how far back the Brain page looks (default 30)
@@ -10,7 +14,8 @@
                                (default: the workspace you're in, else the team aiset-init set up most
                                recently, else the original ~/.claude team)
 
-Settings (/settings) edits the roster (names, roles, colours, duties, models) and the office's
+Two projects at once: open a terminal per project (<team>-pm) and run aiset in each; the offices
+get their own ports. Settings (/settings) edits the roster (names, roles, colours, duties, models) and the office's
 own options (<team>/settings.json); --hours and --brain-days override the stored windows.
 """
 import argparse
@@ -29,7 +34,7 @@ if __name__ == "__main__" and not __package__:  # run as a file: python src/aise
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
     __package__ = "aiset"
 HERE = os.path.dirname(os.path.realpath(__file__))
-from . import registry  # noqa: E402
+from . import registry, running  # noqa: E402
 from .atomic import write_text_atomic  # noqa: E402
 
 # every module reads its paths from workspace.py on import, so settle the workspace first:
@@ -46,7 +51,7 @@ if not (os.environ.get("AISET_WORKSPACE") or os.environ.get("AGENT_OFFICE_WORKSP
     if _known:
         os.environ["AISET_WORKSPACE"] = _known[0]["path"]
         _picked = _known
-from . import brain, brief_index, settings, sync_names, workspace  # noqa: E402
+from . import brain, brief_index, notify, settings, sync_names, workspace  # noqa: E402
 from .core import Office, board_detail, task_detail, task_routes  # noqa: E402
 
 
@@ -216,6 +221,10 @@ class Handler(BaseHTTPRequestHandler):
             if path.endswith("mermaid"):
                 return self._send(200, archmap.mermaid(data, bool(q.get("all"))).encode(), "text/plain; charset=utf-8")
             return self._send(200, json.dumps(data).encode(), "application/json")
+        if path == "/api/notifications":
+            cfg = notify.settings(workspace.TEAM)
+            items = notify.recent(workspace.TEAM) if cfg["office"] else []
+            return self._send(200, json.dumps({"enabled": cfg["office"], "items": items}).encode(), "application/json")
         if path == "/api/settings":
             with self.lock:
                 return self._send(200, json.dumps(self.settings_payload()).encode(), "application/json")
@@ -295,18 +304,53 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps(self.settings_payload()).encode(), "application/json")
 
 
+DEFAULT_PORT = 8765
+PORT_TRIES = 20  # 8765..8784, then the system picks a free port (port 0)
+
+
+class OfficeServer(ThreadingHTTPServer):
+    # on Windows SO_REUSEADDR lets a second office bind a port another office is already using,
+    # so a busy port has to fail there; elsewhere it stays on, so a quick restart isn't blocked
+    allow_reuse_address = os.name != "nt"
+
+
+def bind_office(port):
+    """An OfficeServer on 127.0.0.1. With port None (not given), a busy DEFAULT_PORT moves on."""
+    if port is not None:
+        return OfficeServer(("127.0.0.1", port), Handler)
+    for candidate in list(range(DEFAULT_PORT, DEFAULT_PORT + PORT_TRIES)) + [0]:
+        try:
+            return OfficeServer(("127.0.0.1", candidate), Handler)
+        except OSError as e:
+            if candidate == 0 or not (e.errno == errno.EADDRINUSE or isinstance(e, PermissionError)):
+                raise
+
+
+def print_running():
+    offices = running.running()
+    if not offices:
+        print("No aiset office is running.")
+        return
+    print("Running aiset offices:")
+    for office in offices:
+        print(f"  {office.get('team', '?')}  {office.get('workspace') or '(the original ~/.claude team)'}  {office.get('url', '')}")
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows consoles default to cp1252
     ap = argparse.ArgumentParser(description="Live office view of your Claude Code agents.",
                                  epilog="Also: aiset run <issue> works a GitHub issue with the team and opens a draft PR after your approval (aiset run --help).")
     from . import __version__
     ap.add_argument("--version", action="version", version="aiset " + __version__)
-    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--port", type=int, default=None, help=f"exact port (default: {DEFAULT_PORT}, or the next free one)")
     ap.add_argument("--hours", type=float, help="show agents active within this many hours (default: Settings, 12)")
     ap.add_argument("--brain-days", type=float, help="how far back the Brain page looks (default: Settings, 30)")
     ap.add_argument("--no-browser", action="store_true")
+    ap.add_argument("--list", action="store_true", help="list the offices running now and exit")
     ap.add_argument("--workspace", help="folder made by init_team.py, or its team name (read before argparse, see top of file)")
     args = ap.parse_args()
+    if args.list:
+        return print_running()
     if args.workspace and not os.path.isfile(workspace.ROSTER):
         sys.exit(f"no team in {workspace.WORKSPACE} (expected {workspace.ROSTER}).\n"
                  "Run init_team.py on it first. In Git Bash write the path with / (C:/Users/... or /c/Users/...), not \\.")
@@ -320,32 +364,50 @@ def main():
     elif not workspace.WORKSPACE:
         print("No workspace found and no team set up with aiset-init: showing the original ~/.claude team.\n"
               "   Run aiset-init <folder> first, or use --workspace <folder>.")
+    ws, team = workspace.WORKSPACE or "", roster.get("team", "Agent")
+    existing = running.find(ws)
+    if existing:
+        print(f"aiset: the {existing.get('team', team)} office is already running at {existing['url']}")
+        if not args.no_browser:
+            webbrowser.open(existing["url"])
+        return
     stored = settings.load()
-    Handler.fixed_hours, Handler.fixed_days, Handler.port = args.hours is not None, args.brain_days is not None, args.port
+    Handler.fixed_hours, Handler.fixed_days, Handler.port = args.hours is not None, args.brain_days is not None, DEFAULT_PORT if args.port is None else args.port
     Handler.office = Office(roster, args.hours if Handler.fixed_hours else stored["hours"])
     Handler.brain_office = Office(roster, (args.brain_days if Handler.fixed_days else stored["brainDays"]) * 24)
     Handler.office.history = Handler.brain_office
     try:
-        server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+        server = bind_office(args.port)
     except OSError as e:
+        shown = DEFAULT_PORT if args.port is None else args.port
         if e.errno == errno.EADDRINUSE or isinstance(e, PermissionError):
             detail = " (port in use or unavailable; another aiset office may be running)"
         else:
             detail = f": {e.strerror or e}"
         sys.exit(
-            f"aiset: can't listen on 127.0.0.1:{args.port}{detail}. "
-            f"Open http://127.0.0.1:{args.port}, or start with --port 0 for a free port."
+            f"aiset: can't listen on 127.0.0.1:{shown}{detail}. "
+            f"Open http://127.0.0.1:{shown}, or start with --port 0 for a free port."
         )
-    Handler.port = server.server_address[1]  # the real port, also when --port 0 picked one
+    Handler.port = server.server_address[1]  # the real port, also when --port 0 or a fallback picked one
     url = f"http://127.0.0.1:{Handler.port}"
     print(f"🏢 {roster.get('team', 'Agent')} office running at {url}  (Ctrl+C to stop)")
     print(f"   team: {workspace.TEAM}")
+    try:
+        entry = running.register(ws, team, Handler.port)
+    except OSError as e:
+        entry = None
+        print(f"   (not listed in aiset --list: {e})")
+    threading.Thread(target=notify.watch_boards, args=(workspace.TEAM,), daemon=True, name="board-watch").start()
     if not args.no_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nbye")
+    finally:
+        if entry:
+            running.unregister(entry)
+        server.server_close()
 
 
 if __name__ == "__main__":

@@ -74,6 +74,17 @@ nav.pages a:hover { color: var(--text); }
 .tokbar { display: flex; gap: 2px; height: 6px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,.05); margin: 8px 0 2px; }
 .tokbar i { display: block; height: 100%; border-radius: 999px; min-width: 2px; }
 
+/* ---------- notifications ---------- */
+.nbell { position: relative; background: transparent; border: 1px solid var(--line, rgba(255,255,255,.15)); color: inherit; border-radius: 10px; padding: 4px 10px; cursor: pointer; font-size: 15px; margin-left: 10px; }
+.nbell b { position: absolute; top: -6px; right: -6px; background: #fb7185; color: #fff; border-radius: 9px; font-size: 10.5px; padding: 1px 5px; display: none; }
+.nbell b.on { display: block; }
+#npanel { display: none; position: fixed; top: 56px; right: 14px; width: 380px; max-height: 60vh; overflow: auto; z-index: 50; background: #151a24; border: 1px solid rgba(255,255,255,.15); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.5); padding: 6px; font-size: 13px; }
+#npanel.show { display: block; }
+#npanel .n { padding: 8px 10px; border-radius: 8px; }
+#npanel .n + .n { border-top: 1px solid rgba(255,255,255,.07); }
+#npanel .n small { color: var(--muted, #94a3b8); display: block; font-size: 11.5px; }
+#npanel .n i { font-style: normal; margin-right: 6px; }
+#npanel .none { padding: 14px; color: var(--muted, #94a3b8); }
 /* ---------- alert banner ---------- */
 #alert { display: none; align-items: center; gap: 12px; padding: 10px 18px; background: linear-gradient(90deg, rgba(251,113,133,.16), rgba(251,113,133,.03)); border-bottom: 1px solid rgba(251,113,133,.28); font-size: 13.5px; }
 #alert.show { display: flex; }
@@ -132,7 +143,7 @@ body.v-iso #floor, body.v-classic #iso-wrap { display: none; }
 .iso-ring { fill: var(--sc); opacity: .0; }
 .s-working .iso-ring, .s-waiting .iso-ring { opacity: .22; animation: glow 1.4s infinite; }
 .s-idle .bot, .s-off .bot { opacity: .55; filter: saturate(.4); }
-.bubble.iso-bubble { z-index: 1; width: auto; max-width: 160px; min-width: 90px; opacity: .97; transform: translate(-50%, -100%); position: absolute; left: 0; right: auto; top: 0; font-size: 11.5px; pointer-events: none; }
+.bubble.iso-bubble { z-index: 1; width: max-content; max-width: 230px; min-width: 110px; -webkit-line-clamp: 4; opacity: .97; transform: translate(-50%, -100%); position: absolute; left: 0; right: auto; top: 0; font-size: 11.5px; pointer-events: none; }
 .iso-plate { z-index: 2; transform: translate(-50%, 0); background: rgba(12,15,23,.88); backdrop-filter: blur(10px); border: 1px solid var(--room-line); border-radius: 10px; padding: 5px 10px 6px; font-size: 12px; white-space: nowrap; cursor: pointer; box-shadow: 0 10px 24px -8px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.04); transition: border-color .15s, transform .15s; }
 .iso-plate::before { content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 3px; border-radius: 0 3px 3px 0; background: var(--c); }
 .iso-plate:hover, .iso-plate.sel { border-color: color-mix(in srgb, var(--c) 60%, transparent); }
@@ -158,7 +169,7 @@ body.v-iso #floor, body.v-classic #iso-wrap { display: none; }
 .desk.sel { border-color: var(--c); box-shadow: 0 0 0 1px var(--c), 0 0 24px -6px var(--c), var(--shadow); }
 .desk .scene { position: relative; height: 128px; margin-top: 26px; }
 .desk .scene svg { width: 100%; height: 100%; overflow: visible; }
-.bubble { position: absolute; left: 8px; right: 8px; top: -30px; z-index: 2; background: rgba(248,250,252,.97); color: #0f172a; font-size: 12px; line-height: 1.35; padding: 6px 10px; border-radius: 12px; box-shadow: 0 8px 20px -6px rgba(0,0,0,.55); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 18px; transition: opacity .3s; font-weight: 500; }
+.bubble { position: absolute; left: 8px; right: 8px; top: -30px; z-index: 2; background: rgba(248,250,252,.97); color: #0f172a; font-size: 12px; line-height: 1.35; padding: 6px 10px; border-radius: 12px; box-shadow: 0 8px 20px -6px rgba(0,0,0,.55); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 18px; transition: opacity .3s; font-weight: 500; }
 .bubble:after { content: ""; position: absolute; left: 50%; bottom: -6px; border: 6px solid transparent; border-top-color: rgba(248,250,252,.97); border-bottom: 0; transform: translateX(-50%); }
 .bubble.flash { animation: pop .35s cubic-bezier(.2,.9,.3,1.3); }
 @keyframes pop { from { transform: scale(.94); opacity: .3; } to { transform: scale(1); opacity: 1; } }
@@ -424,7 +435,9 @@ body.no-lounge .room.pm { grid-column: span 12; }
   <nav class="pages"><a href="/" class="on">Office</a><a href="/brain" data-page="brain">Brain</a><a href="/architecture" data-page="architecture">Architecture</a><a href="/settings" title="Models, team and layout">Settings</a></nav>
   <div class="live" id="live"><i></i><span>connecting…</span></div>
   <div class="stats" id="stats"></div>
+  <button id="nbell" class="nbell" title="Notifications" aria-label="Notifications" style="display:none">🔔<b id="ncount"></b></button>
 </header>
+<div id="npanel" role="dialog" aria-label="Recent notifications"></div>
 <div id="alert"><span class="bell">🔔</span><span id="alert-text"></span></div>
 <main>
   <div id="floor-wrap">
@@ -1292,6 +1305,35 @@ tick().then(() => {
   const m = location.hash.match(/open=([^&]+)/); if (m) openDrawer(decodeURIComponent(m[1]));
   if (/[#&]view=routes\b/.test(location.hash) && drawerKey?.startsWith("task:")) { taskView = "routes"; renderDrawer(); }
 });
+
+/* ---------- notifications: the office's own list (notifications.jsonl) ---------- */
+const N_ICON = { waiting: "🙋", done: "✅", board: "📋" };
+let nSeen = Number(localStorage.getItem("aisetNotifySeen") || 0), nItems = [];
+async function pollNotifications() {
+  try {
+    const r = await (await fetch("/api/notifications")).json();
+    nItems = r.items || [];
+    $("#nbell").style.display = r.enabled ? "" : "none";
+    const fresh = nItems.filter(n => n.ts > nSeen).length;
+    const c = $("#ncount"); c.textContent = fresh > 9 ? "9+" : fresh; c.classList.toggle("on", fresh > 0);
+    if ($("#npanel").classList.contains("show")) renderNotifications();
+  } catch {}
+}
+function renderNotifications() {
+  $("#npanel").innerHTML = nItems.length ? nItems.map(n => `<div class="n"><i>${N_ICON[n.kind] || "🔔"}</i>${esc(n.message)}<small>${esc(n.team || "")} · ${esc(String(n.at || "").replace("T", " "))}</small></div>`).join("")
+    : `<div class="none">No notifications yet.</div>`;
+}
+$("#nbell").addEventListener("click", e => {
+  e.stopPropagation();
+  const p = $("#npanel"); p.classList.toggle("show");
+  if (p.classList.contains("show")) {
+    renderNotifications();
+    nSeen = Math.max(nSeen, ...nItems.map(n => n.ts), 0); localStorage.setItem("aisetNotifySeen", String(nSeen));
+    $("#ncount").classList.remove("on");
+  }
+});
+document.addEventListener("click", e => { if (!e.target.closest("#npanel")) $("#npanel").classList.remove("show"); });
+pollNotifications(); setInterval(pollNotifications, 4000);
 setInterval(tick, 1500);
 </script>
 </body>
