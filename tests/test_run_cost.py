@@ -53,7 +53,8 @@ class CostTest(unittest.TestCase):
 
     def test_token_boundaries(self):
         for total, expected in [(999, "999"), (1_000, "1k"), (2_500, "3k"),
-                                (999_499, "999k"), (999_999, "1000k"), (1_000_000, "1.00M")]:
+                                (999_499, "999k"), (999_500, "1.00M"), (999_999, "1.00M"),
+                                (1_000_000, "1.00M")]:
             with self.subTest(total=total):
                 usage = single_run_usage(total, 0.01)
                 self.assertEqual(cost_line(usage),
@@ -62,7 +63,7 @@ class CostTest(unittest.TestCase):
 
     def test_empty_runs_and_zero_tokens(self):
         for usage in ({"agents": [], "runs": [], "tokens": {"total": 0, "cost": 0, "byModel": {}}},
-                      {**single_run_usage(10, 0.01), "runs": []},
+                      {**single_run_usage(10, 0.01), "agents": []},
                       single_run_usage(0, 0)):
             with self.subTest(usage=usage):
                 self.assertEqual(cost_line(usage), "cost not available (no transcripts found for this task)")
@@ -78,6 +79,24 @@ class CostTest(unittest.TestCase):
                     f"| pm | 1 |  | 1.93M | {expected} |",
                     f"| **Total** | 1 |  | 1.93M | {expected} |",
                 ])
+
+    def test_malformed_usage(self):
+        for usage in ({}, {"tokens": {"total": 10}}, {"tokens": {"total": 10}, "agents": None},
+                      {"tokens": {"total": 10}, "agents": [{"agent": "pm"}]},
+                      {"tokens": {"total": 10}, "agents": ["pm"], "runs": [{}]}):
+            with self.subTest(usage=usage):
+                self.assertEqual(cost_line(usage), "cost not available (no transcripts found for this task)")
+                self.assertEqual(cost_table(usage), "")
+
+    def test_runs_counted_from_agents(self):
+        usage = {"tokens": {"total": 500, "cost": 0.02},
+                 "agents": [{"agent": "pm", "runs": 2}, {"agent": "tester"}]}
+        self.assertEqual(cost_line(usage), "$0.02 · 500 tokens · 2 runs: pm ×2, tester (estimated at API list prices)")
+        self.assertEqual(cost_table(usage).splitlines()[2:], [
+            "| pm | 2 |  | 0 | $0.00 |",
+            "| tester | 0 |  | 0 | $0.00 |",
+            "| **Total** | 2 |  | 500 | $0.02 |",
+        ])
 
     def test_agent_cells_and_model_ties(self):
         usage = single_run_usage(400, 0.01, name="root\\worker|qa\nhelper",

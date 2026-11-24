@@ -100,7 +100,7 @@ If `aiset run` opens the office instead (an older `aiset` earlier on `PATH`), `p
 3. When the work is verified, the PM writes `summary.md` and asks you to type `/exit`.
 4. **Gate 2:** you see every URL `origin` really pushes to (each must be the issue's repo on github.com), the base branch, the commits the session made since gate 1, the files and diffstat since gate 1, any earlier commits the push would also send (marked, with a separate question, when they touch `.claude/` or carry an AI trailer), a loud flag on new or changed files under `.github/`, and `pr.md`, the PR description with the criteria, the tester's checks, the open assumptions and the cost. Commits from the session that touch `.claude/` or carry an AI trailer (`Co-Authored-By` ...) are refused; other session commits need their own `y`. If git config that can redirect a push or run code (remotes, `url.*.insteadOf`, aliases, `core.hooksPath`, filters ...) or a hook changed since gate 1, you get a loud warning and a separate question. `d` shows the diff, new files included. Only on `y` does `aiset run` commit (no AI trailer), push the branch and run `gh pr create --draft`, with git hooks turned off for its own commit and push. On `N` nothing is committed or pushed; publish later with `--publish`.
 
-The **Cost** section in the gate 2 preview and draft PR body shows the task's estimated cost at API list prices, compact token count, total runs, and an ordered breakdown by agent. If no usage is available, it shows a cost-unavailable notice. If tokens are available but prices are unknown, it reports the cost as unknown. A positive estimate below one cent appears as `<$0.01`.
+The **Cost** section in the gate 2 preview and draft PR body is one line: the task's estimated cost at API list prices, a compact token count, the total runs, and the agents that ran (with a run count when an agent ran more than once). If no usage is available, it says cost is not available. If tokens are available but prices are unknown, it reports the cost as unknown. A positive estimate below one cent appears as `<$0.01`.
 
 The issue is text written by outsiders. Agents get it only as `issue.md`, marked as data, never in their prompt. The session can't push or write to GitHub: deny rules and a hook (`src/aiset/run/gate.py`, passed with `--settings` for this session only, subagents included) block `git push` (and its aliases and wrappers), `gh issue`, `gh pr` writes, `gh api` writes, and edits inside `.git/` (hooks, config). It is a tripwire, not a sandbox: what it can't catch is listed in `gate.py`, and gate 2 checks the result anyway. Text from the issue and the agents is defused in the PR description, so `@mentions` don't ping and `fixes #9` closes nothing.
 
@@ -112,7 +112,7 @@ Known limits of the tripwire (accepted because gate 2 shows you the commits, con
 
 This is a first version. Gate 1 warns about hidden characters in the issue (zero-width, bidi and other invisible characters, shown as `<U+XXXX>`) and about HTML comments.
 
-The preview reads criteria only from `- [ ]` task lists, and the issue snapshot has no size limits. Headless or CI runs, a budget limit, changes across several repos, worktrees and GitHub Enterprise hosts are outside the preview's scope.
+Several parts are deliberately simple stubs that contributors are replacing: today the criteria are read only from `- [ ]` task lists, and the snapshot has no size limits. Not in this version: headless or CI runs, a budget limit, changes across several repos, worktrees, GitHub Enterprise hosts.
 
 ## The office
 

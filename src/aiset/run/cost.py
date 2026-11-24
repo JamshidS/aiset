@@ -4,16 +4,29 @@ from __future__ import annotations
 from typing import Optional
 
 
+def _agents(usage: dict) -> list:
+    agents = usage.get("agents") or []
+    return [agent for agent in agents if isinstance(agent, dict)] if isinstance(agents, list) else []
+
+
+def _runs(agent: dict) -> int:
+    runs = agent.get("runs") or 0
+    return runs if isinstance(runs, int) and runs > 0 else 0
+
+
 def _task_tokens(usage: dict) -> Optional[dict]:
     tokens = usage.get("tokens") or {}
-    return tokens if usage.get("runs") and tokens.get("total") else None
+    if not isinstance(tokens, dict) or not tokens.get("total"):
+        return None
+    return tokens if sum(_runs(agent) for agent in _agents(usage)) else None
 
 
 def _format_tokens(total: int) -> str:
     if total < 1_000:
         return str(total)
-    if total < 1_000_000:
-        return f"{(total + 500) // 1_000}k"
+    thousands = (total + 500) // 1_000
+    if thousands < 1_000:
+        return f"{thousands}k"
     return f"{total / 1_000_000:.2f}M"
 
 
@@ -37,22 +50,24 @@ def cost_line(usage: Optional[dict]) -> str:
     if tokens is None:
         return "cost not available (no transcripts found for this task)"
 
-    runs = sum(agent["runs"] for agent in usage["agents"])
+    agents = _agents(usage)
+    runs = sum(_runs(agent) for agent in agents)
     run_label = "run" if runs == 1 else "runs"
     names = []
-    for agent in usage["agents"]:
+    for agent in agents:
         name = _agent_name(agent)
-        if agent["runs"] > 1:
-            name += f" ×{agent['runs']}"
+        if _runs(agent) > 1:
+            name += f" ×{_runs(agent)}"
         names.append(name)
-    return (f"{_format_cost(tokens)} · {_format_tokens(tokens['total'])} tokens · {runs} {run_label}: "
+    return (f"{_format_cost(tokens)} · {_format_tokens(tokens.get('total') or 0)} tokens · {runs} {run_label}: "
             f"{', '.join(names)} (estimated at API list prices)")
 
 
 def _table_row(name: str, runs: int, tokens: dict) -> str:
     by_model = tokens.get("byModel") or {}
+    by_model = by_model if isinstance(by_model, dict) else {}
     models = "+".join(sorted(by_model, key=by_model.get, reverse=True))
-    return f"| {name} | {runs} | {models} | {_format_tokens(tokens['total'])} | {_format_cost(tokens)} |"
+    return f"| {name} | {runs} | {models} | {_format_tokens(tokens.get('total') or 0)} | {_format_cost(tokens)} |"
 
 
 def cost_table(usage: Optional[dict]) -> str:
@@ -63,9 +78,10 @@ def cost_table(usage: Optional[dict]) -> str:
 
     rows = ["| Agent | Runs | Model | Tokens | Cost |", "|---|---:|---|---:|---:|"]
     runs = 0
-    for agent in usage["agents"]:
+    for agent in _agents(usage):
         name = _agent_name(agent).replace("\\", "\\\\").replace("|", "\\|")
-        rows.append(_table_row(name, agent["runs"], agent["tokens"]))
-        runs += agent["runs"]
+        agent_tokens = agent.get("tokens")
+        rows.append(_table_row(name, _runs(agent), agent_tokens if isinstance(agent_tokens, dict) else {}))
+        runs += _runs(agent)
     rows.append(_table_row("**Total**", runs, tokens))
     return "\n".join(rows)
