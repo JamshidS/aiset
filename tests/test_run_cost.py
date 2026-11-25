@@ -93,8 +93,8 @@ class CostTest(unittest.TestCase):
                  "agents": [{"agent": "pm", "runs": 2}, {"agent": "tester"}]}
         self.assertEqual(cost_line(usage), "$0.02 · 500 tokens · 2 runs: pm ×2, tester (estimated at API list prices)")
         self.assertEqual(cost_table(usage).splitlines()[2:], [
-            "| pm | 2 |  | 0 | $0.00 |",
-            "| tester | 0 |  | 0 | $0.00 |",
+            "| pm | 2 | | - | - |",
+            "| tester | 0 | | - | - |",
             "| **Total** | 2 |  | 500 | $0.02 |",
         ])
 
@@ -109,6 +109,35 @@ class CostTest(unittest.TestCase):
             r"| root\\worker\|qa helper | 1 | sonnet+opus+haiku | 400 | $0.01 |",
             "| unknown | 1 |  | 0 | $0.00 |",
         ])
+
+    def test_malformed_usage_does_not_crash(self):
+        na = "cost not available (no transcripts found for this task)"
+        for usage in ("x", ["a"], 5, True):
+            self.assertEqual(cost_line(usage), na)
+            self.assertEqual(cost_table(usage), "")
+        for total in ("5", None, True, float("nan"), float("inf")):
+            usage = single_run_usage(total, 1.0)
+            self.assertEqual(cost_line(usage), na)
+            self.assertEqual(cost_table(usage), "")
+
+    def test_non_numeric_cost_and_agent_total(self):
+        usage = single_run_usage(5000, "1.5", by_model={"opus": "x", "sonnet": 3})
+        usage["agents"][0]["tokens"] = {"total": "9", "cost": [], "byModel": {"opus": "x"}}
+        self.assertIn("cost unknown", cost_line(usage))
+        self.assertEqual(cost_table(usage).splitlines()[2], "| pm | 1 | opus | 0 | $0.00 |")
+
+    def test_bool_runs_not_counted(self):
+        usage = single_run_usage(5000, 1.0)
+        usage["agents"][0]["runs"] = True
+        self.assertEqual(cost_line(usage), "cost not available (no transcripts found for this task)")
+
+    def test_agent_without_tokens_dict(self):
+        usage = single_run_usage(5000, 1.0)
+        usage["agents"].append({"agent": "qa", "runs": 1})
+        self.assertEqual(cost_table(usage).splitlines()[3], "| qa | 1 | | - | - |")
+
+    def test_float_total(self):
+        self.assertIn("$1.00 · 6 tokens", cost_line(single_run_usage(5.5, 1.0)))
 
 
 if __name__ == "__main__":
